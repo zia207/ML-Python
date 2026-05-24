@@ -1,0 +1,392 @@
+# Chapter 15: Model Evaluation & Best Practices
+
+> **Level**: All Levels | **Estimated Time**: 3–4 hours
+
+---
+
+## 15.1 Why Evaluation Matters
+
+Training accuracy is meaningless. A model that memorizes the training set scores 100% but fails completely on new data (**overfitting**).
+
+We need **unbiased estimates** of how our model will perform on unseen data.
+
+---
+
+## 15.2 The Train / Validation / Test Split
+
+```
+All Data
+├── Training Set (60–70%)   ← model learns from this
+├── Validation Set (15–20%) ← hyperparameter tuning
+└── Test Set (15–20%)       ← final evaluation (touch once!)
+```
+
+**Golden rule**: Never use the test set during model development. It simulates future, unseen data.
+
+---
+
+## 15.3 Cross-Validation
+
+When data is limited, k-fold CV uses all data for both training and validation:
+
+```
+Fold 1: [VAL][TRN][TRN][TRN][TRN]
+Fold 2: [TRN][VAL][TRN][TRN][TRN]
+Fold 3: [TRN][TRN][VAL][TRN][TRN]
+...
+Score = mean accuracy across all folds
+```
+
+Standard: k=5 or k=10. Computationally expensive but gives more reliable estimates.
+
+---
+
+## 15.4 Classification Metrics
+
+### Confusion Matrix
+
+```
+                 Predicted +    Predicted -
+Actual +     True Positive (TP)   False Negative (FN)
+Actual -     False Positive (FP)  True Negative (TN)
+```
+
+### Derived Metrics
+
+```
+Accuracy  = (TP + TN) / (TP + TN + FP + FN)
+Precision = TP / (TP + FP)            ← of predicted +, how many correct?
+Recall    = TP / (TP + FN)            ← of actual +, how many found?
+F1 Score  = 2 · Precision · Recall / (Precision + Recall)
+```
+
+**When to use which**:
+- **Accuracy**: balanced classes
+- **Precision**: false positives are costly (spam → not marking ham as spam)
+- **Recall**: false negatives are costly (cancer → not missing a patient)
+- **F1**: imbalanced classes, balance precision/recall
+
+### ROC-AUC
+
+Plot True Positive Rate vs False Positive Rate at various thresholds.  
+**AUC** (Area Under Curve) = 0.5 (random), 1.0 (perfect).
+
+---
+
+## 15.5 Regression Metrics
+
+| Metric | Formula | Notes |
+|--------|---------|-------|
+| MAE | `(1/n) Σ |yᵢ - ŷᵢ|` | Robust to outliers |
+| MSE | `(1/n) Σ (yᵢ - ŷᵢ)²` | Penalizes large errors more |
+| RMSE | `√MSE` | Same units as target |
+| R² | `1 - SS_res/SS_tot` | 1=perfect, 0=baseline, <0=worse than baseline |
+| MAPE | `(1/n) Σ |yᵢ-ŷᵢ|/|yᵢ|` | Percentage error |
+
+---
+
+## 15.6 Overfitting & Underfitting
+
+```
+         Training Error   Test Error
+Underfit:    High            High       (model too simple)
+Good fit:    Low             Low        (generalization)
+Overfit:     Low             High       (memorization)
+```
+
+### Remedies
+
+**For Overfitting:**
+- More training data
+- Regularization (L1/L2)
+- Reduce model complexity
+- Dropout (neural nets)
+- Early stopping
+- Cross-validation
+
+**For Underfitting:**
+- More complex model
+- Better features
+- Reduce regularization
+- Train longer
+
+---
+
+## 15.7 Regularization
+
+Regularization adds a penalty to the loss function to discourage complex models:
+
+```
+L1 (Lasso):  J_reg = J + λ Σⱼ |wⱼ|      → sparse weights (feature selection)
+L2 (Ridge):  J_reg = J + λ Σⱼ wⱼ²       → small weights (smooth solution)
+ElasticNet:  J_reg = J + λ₁ Σ|wⱼ| + λ₂ Σwⱼ²  → combines both
+```
+
+---
+
+## 15.8 From-Scratch Python: Full Evaluation Toolkit
+
+```python
+# evaluation.py
+import math, random
+from collections import defaultdict
+
+# ── Train/Validation/Test Split ───────────────────────────────────────────
+
+def train_val_test_split(X, y, val_ratio=0.15, test_ratio=0.15, seed=42):
+    random.seed(seed)
+    n = len(X)
+    idx = list(range(n))
+    random.shuffle(idx)
+    test_end = int(n * test_ratio)
+    val_end  = test_end + int(n * val_ratio)
+    test_idx = idx[:test_end]
+    val_idx  = idx[test_end:val_end]
+    train_idx = idx[val_end:]
+    def subset(lst, indices): return [lst[i] for i in indices]
+    return (subset(X,train_idx), subset(X,val_idx), subset(X,test_idx),
+            subset(y,train_idx), subset(y,val_idx), subset(y,test_idx))
+
+# ── K-Fold Cross-Validation ───────────────────────────────────────────────
+
+def k_fold_cv(model_fn, X, y, k=5, metric_fn=None, seed=42):
+    """
+    model_fn: callable that returns a trained model given (X_train, y_train)
+    metric_fn: callable (y_true, y_pred) → score
+    Returns list of scores per fold.
+    """
+    random.seed(seed)
+    n = len(X)
+    indices = list(range(n))
+    random.shuffle(indices)
+    fold_size = n // k
+    scores = []
+
+    for fold in range(k):
+        val_start = fold * fold_size
+        val_end   = val_start + fold_size if fold < k-1 else n
+        val_idx   = indices[val_start:val_end]
+        train_idx = indices[:val_start] + indices[val_end:]
+
+        X_train = [X[i] for i in train_idx]
+        y_train = [y[i] for i in train_idx]
+        X_val   = [X[i] for i in val_idx]
+        y_val   = [y[i] for i in val_idx]
+
+        model = model_fn(X_train, y_train)
+        y_pred = model.predict(X_val)
+
+        if metric_fn:
+            score = metric_fn(y_val, y_pred)
+        else:
+            score = sum(yp==yt for yp,yt in zip(y_pred,y_val))/len(y_val)
+        scores.append(score)
+
+    return scores
+
+# ── Classification Metrics ────────────────────────────────────────────────
+
+def accuracy(y_true, y_pred):
+    return sum(yt==yp for yt,yp in zip(y_true,y_pred)) / len(y_true)
+
+def confusion_matrix(y_true, y_pred, classes=None):
+    if classes is None:
+        classes = sorted(set(y_true) | set(y_pred))
+    idx = {c:i for i,c in enumerate(classes)}
+    k = len(classes)
+    cm = [[0]*k for _ in range(k)]
+    for yt, yp in zip(y_true, y_pred):
+        cm[idx[yt]][idx[yp]] += 1
+    return cm, classes
+
+def classification_report(y_true, y_pred):
+    classes = sorted(set(y_true))
+    cm, _ = confusion_matrix(y_true, y_pred, classes)
+    k = len(classes)
+    print(f"{'Class':<12} {'Precision':>10} {'Recall':>10} {'F1':>10} {'Support':>10}")
+    print("-" * 52)
+    for i, c in enumerate(classes):
+        TP = cm[i][i]
+        FP = sum(cm[j][i] for j in range(k)) - TP
+        FN = sum(cm[i][j] for j in range(k)) - TP
+        prec = TP / (TP+FP) if (TP+FP) > 0 else 0
+        rec  = TP / (TP+FN) if (TP+FN) > 0 else 0
+        f1   = 2*prec*rec/(prec+rec) if (prec+rec) > 0 else 0
+        sup  = sum(cm[i])
+        print(f"{str(c):<12} {prec:>10.3f} {rec:>10.3f} {f1:>10.3f} {sup:>10d}")
+    print("-" * 52)
+    acc = accuracy(y_true, y_pred)
+    print(f"{'Accuracy':<12} {'':>10} {'':>10} {acc:>10.3f} {len(y_true):>10d}")
+
+# ── ROC Curve and AUC ─────────────────────────────────────────────────────
+
+def roc_auc(y_true, y_scores):
+    """
+    Compute ROC curve and AUC for binary classification.
+    y_scores: predicted probabilities for positive class.
+    """
+    pairs = sorted(zip(y_scores, y_true), reverse=True)
+    n_pos = sum(y_true)
+    n_neg = len(y_true) - n_pos
+
+    tpr_list, fpr_list = [0.0], [0.0]
+    tp = fp = 0
+    prev_score = None
+
+    for score, label in pairs:
+        if score != prev_score:
+            tpr_list.append(tp / n_pos if n_pos > 0 else 0)
+            fpr_list.append(fp / n_neg if n_neg > 0 else 0)
+            prev_score = score
+        if label == 1:
+            tp += 1
+        else:
+            fp += 1
+
+    tpr_list.append(1.0)
+    fpr_list.append(1.0)
+
+    # Trapezoidal AUC
+    auc = sum(
+        (fpr_list[i+1] - fpr_list[i]) * (tpr_list[i+1] + tpr_list[i]) / 2
+        for i in range(len(tpr_list)-1)
+    )
+    return auc, fpr_list, tpr_list
+
+# ── Regression Metrics ────────────────────────────────────────────────────
+
+def mae(y_true, y_pred):
+    return sum(abs(yt-yp) for yt,yp in zip(y_true,y_pred)) / len(y_true)
+
+def mse(y_true, y_pred):
+    return sum((yt-yp)**2 for yt,yp in zip(y_true,y_pred)) / len(y_true)
+
+def rmse(y_true, y_pred):
+    return math.sqrt(mse(y_true, y_pred))
+
+def r_squared(y_true, y_pred):
+    m = sum(y_true)/len(y_true)
+    ss_tot = sum((yt-m)**2 for yt in y_true)
+    ss_res = sum((yt-yp)**2 for yt,yp in zip(y_true,y_pred))
+    return 1 - ss_res/ss_tot if ss_tot > 0 else 0
+
+# ── Learning Curve ────────────────────────────────────────────────────────
+
+def learning_curve(model_fn, X, y, train_sizes=None, metric_fn=None):
+    """Track train and validation error as training set grows."""
+    if train_sizes is None:
+        n = len(X)
+        train_sizes = [int(n*r) for r in [0.1, 0.2, 0.4, 0.6, 0.8, 1.0]]
+
+    split = int(len(X) * 0.8)
+    X_train_full, X_val = X[:split], X[split:]
+    y_train_full, y_val = y[:split], y[split:]
+
+    train_scores, val_scores = [], []
+    metric = metric_fn or (lambda yt, yp: sum(a==b for a,b in zip(yt,yp))/len(yt))
+
+    for size in train_sizes:
+        size = min(size, len(X_train_full))
+        X_tr, y_tr = X_train_full[:size], y_train_full[:size]
+        model = model_fn(X_tr, y_tr)
+        train_scores.append(metric(y_tr, model.predict(X_tr)))
+        val_scores.append(metric(y_val, model.predict(X_val)))
+
+    print(f"\nLearning Curve:")
+    print(f"{'Size':>8} {'Train Score':>14} {'Val Score':>12}")
+    for size, tr, va in zip(train_sizes, train_scores, val_scores):
+        gap = tr - va
+        status = "overfit" if gap > 0.05 else "good"
+        print(f"{size:>8d} {tr:>14.3f} {va:>12.3f}  [{status}]")
+    return train_sizes, train_scores, val_scores
+
+
+# ── Demo ──────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # Synthetic binary classification
+    random.seed(99)
+    y_true = [random.choice([0,1]) for _ in range(100)]
+    # Good model: mostly correct
+    y_pred = [yt if random.random() > 0.15 else 1-yt for yt in y_true]
+    y_prob = [0.8+0.1*random.random() if yp==1 else 0.2*random.random()
+              for yp in y_pred]
+
+    print("=== Classification Report ===")
+    classification_report(y_true, y_pred)
+
+    auc, fpr, tpr = roc_auc(y_true, y_prob)
+    print(f"\nROC-AUC: {auc:.3f}")
+
+    # Regression metrics
+    y_reg_true = [float(i) for i in range(20)]
+    y_reg_pred = [i + random.gauss(0,1) for i in range(20)]
+    print(f"\n=== Regression Metrics ===")
+    print(f"MAE:  {mae(y_reg_true, y_reg_pred):.3f}")
+    print(f"RMSE: {rmse(y_reg_true, y_reg_pred):.3f}")
+    print(f"R²:   {r_squared(y_reg_true, y_reg_pred):.3f}")
+```
+
+---
+
+## 15.9 Hyperparameter Tuning
+
+### Grid Search
+
+```python
+def grid_search(model_fn, X, y, param_grid, k=5):
+    """Exhaustively search all hyperparameter combinations."""
+    from itertools import product
+
+    param_names = list(param_grid.keys())
+    param_values = list(param_grid.values())
+
+    best_score, best_params = -math.inf, None
+
+    for combo in product(*param_values):
+        params = dict(zip(param_names, combo))
+        scores = k_fold_cv(lambda X_tr, y_tr: model_fn(X_tr, y_tr, **params), X, y, k)
+        mean_score = sum(scores)/len(scores)
+        if mean_score > best_score:
+            best_score = mean_score
+            best_params = params
+
+    return best_params, best_score
+```
+
+---
+
+## 15.10 ML Best Practices Checklist
+
+- [ ] Exploratory Data Analysis (EDA) before modeling
+- [ ] Handle missing values and outliers
+- [ ] Feature normalization / standardization
+- [ ] Establish a baseline model first
+- [ ] Use cross-validation, not single train/test split
+- [ ] Never peek at test set during development
+- [ ] Check for data leakage
+- [ ] Use appropriate metric for the task
+- [ ] Analyze errors (confusion matrix, residuals)
+- [ ] Document experiments with hyperparameters and results
+
+---
+
+## ✅ Final Summary
+
+| Topic | Key Tool/Concept |
+|-------|-----------------|
+| Bias-variance | Underfitting vs overfitting |
+| Evaluation | Cross-validation, test set |
+| Classification | Accuracy, F1, AUC-ROC |
+| Regression | RMSE, R² |
+| Overfitting fix | Regularization, more data, simpler model |
+| Hyperparameters | Grid search + cross-validation |
+
+---
+
+**← Previous:** [Chapter 14: Reinforcement Learning](chapter-14-reinforcement-learning.md)  
+**← Back to Start:** [README / Master Outline](README.md)
+
+---
+
+*Congratulations on completing the tutorial! 🎉*  
+*You now have the mathematical and coding foundations to implement, train, and evaluate every major ML algorithm from scratch.*

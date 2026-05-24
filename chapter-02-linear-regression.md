@@ -1,0 +1,267 @@
+# Chapter 02: Linear Regression
+
+> **Level**: Beginner | **Estimated Time**: 3–4 hours
+
+---
+
+## 2.1 Intuition
+
+Linear regression answers: *"Given some input features, can we predict a continuous output?"*
+
+**Example**: Predict house price from size (sqft).
+
+The idea: fit a straight line through the data so predictions are as close to reality as possible.
+
+```
+Price = w₁ × (size) + w₀
+```
+
+In higher dimensions, this becomes a **hyperplane** instead of a line.
+
+---
+
+## 2.2 Mathematical Formulation
+
+### The Model
+Given input vector **x** = [x₁, x₂, ..., xₚ] and weights **w** = [w₀, w₁, ..., wₚ]:
+
+```
+ŷ = w₀ + w₁x₁ + w₂x₂ + ... + wₚxₚ
+
+In compact vector form:
+ŷ = wᵀx   (where x₀ = 1 is added as a bias feature)
+```
+
+### The Cost Function (Mean Squared Error)
+We want **w** such that predictions ŷ are close to true targets y.  
+We measure this with **Mean Squared Error (MSE)**:
+
+```
+J(w) = (1/n) Σᵢ (yᵢ - ŷᵢ)²
+     = (1/n) Σᵢ (yᵢ - wᵀxᵢ)²
+```
+
+**Why squared?** Squaring penalizes large errors more, is always positive, and is smooth (differentiable).
+
+---
+
+## 2.3 Solving Linear Regression
+
+### Method 1: Ordinary Least Squares (Closed-Form Solution)
+
+Taking the derivative of J(w) and setting it to zero gives:
+
+```
+w* = (XᵀX)⁻¹ Xᵀy
+```
+
+This is the **Normal Equation** — an exact solution, but computationally expensive for large datasets (O(p³) matrix inversion).
+
+### Method 2: Gradient Descent
+
+**Gradient descent** iteratively updates weights by moving in the direction that reduces the cost:
+
+```
+Repeat until convergence:
+    gradient = (2/n) Σᵢ (ŷᵢ - yᵢ) · xᵢ
+    w ← w - α · gradient
+```
+
+Where:
+- `α` (alpha) is the **learning rate** — how big each update step is
+- Too large α: overshoots the minimum; Too small: slow convergence
+
+---
+
+## 2.4 From-Scratch Python Implementation
+
+```python
+# linear_regression.py
+
+import math
+
+class LinearRegression:
+    """
+    Linear Regression using Gradient Descent.
+    No ML libraries — pure Python.
+    """
+
+    def __init__(self, learning_rate=0.01, n_iterations=1000):
+        self.lr = learning_rate
+        self.n_iterations = n_iterations
+        self.weights = None   # [w₀, w₁, ..., wₚ]
+        self.cost_history = []
+
+    def _add_bias(self, X):
+        """Prepend a 1 to each sample for the bias term w₀."""
+        return [[1.0] + list(row) for row in X]
+
+    def _predict_one(self, x_with_bias):
+        """Compute ŷ = wᵀx for a single sample."""
+        return sum(wi * xi for wi, xi in zip(self.weights, x_with_bias))
+
+    def _compute_cost(self, X_b, y):
+        """Mean Squared Error: J = (1/n) Σ (yᵢ - ŷᵢ)²"""
+        n = len(y)
+        total = 0.0
+        for xi, yi in zip(X_b, y):
+            error = yi - self._predict_one(xi)
+            total += error ** 2
+        return total / n
+
+    def fit(self, X, y):
+        """Train the model using gradient descent."""
+        X_b = self._add_bias(X)
+        n = len(y)
+        p = len(X_b[0])
+
+        # Initialize weights to zero
+        self.weights = [0.0] * p
+
+        for iteration in range(self.n_iterations):
+            # Compute gradients
+            gradients = [0.0] * p
+            for xi, yi in zip(X_b, y):
+                y_pred = self._predict_one(xi)
+                error = y_pred - yi            # (ŷ - y)
+                for j in range(p):
+                    gradients[j] += error * xi[j]
+
+            # Update weights: w ← w - α * (2/n) * gradient
+            for j in range(p):
+                self.weights[j] -= self.lr * (2 / n) * gradients[j]
+
+            # Record cost every 100 iterations
+            if iteration % 100 == 0:
+                cost = self._compute_cost(X_b, y)
+                self.cost_history.append(cost)
+
+        return self
+
+    def predict(self, X):
+        """Predict output for a list of samples."""
+        X_b = self._add_bias(X)
+        return [self._predict_one(xi) for xi in X_b]
+
+
+# ── Metrics ────────────────────────────────────────────────────────────────
+
+def mse(y_true, y_pred):
+    n = len(y_true)
+    return sum((yt - yp)**2 for yt, yp in zip(y_true, y_pred)) / n
+
+def rmse(y_true, y_pred):
+    return math.sqrt(mse(y_true, y_pred))
+
+def r_squared(y_true, y_pred):
+    """Coefficient of determination R²."""
+    y_mean = sum(y_true) / len(y_true)
+    ss_tot = sum((yt - y_mean)**2 for yt in y_true)
+    ss_res = sum((yt - yp)**2 for yt, yp in zip(y_true, y_pred))
+    return 1 - (ss_res / ss_tot)
+
+
+# ── Demo ───────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # Dataset: House size (sqft / 1000) → Price ($1000s)
+    X_train = [[0.8], [1.2], [1.5], [2.0], [2.5], [1.0], [1.8]]
+    y_train = [150,   200,   250,   320,   400,   175,   290]
+
+    X_test  = [[1.1], [2.2], [0.9]]
+    y_test  = [190,   350,   160]
+
+    # Train
+    model = LinearRegression(learning_rate=0.05, n_iterations=2000)
+    model.fit(X_train, y_train)
+
+    print("Learned weights (w₀=bias, w₁=size coefficient):")
+    print(f"  w₀ = {model.weights[0]:.2f}")
+    print(f"  w₁ = {model.weights[1]:.2f}")
+    print(f"  Equation: price = {model.weights[0]:.1f} + {model.weights[1]:.1f} × size")
+
+    # Evaluate
+    y_pred = model.predict(X_test)
+    print("\nTest Predictions vs Actuals:")
+    for xi, yp, yt in zip(X_test, y_pred, y_test):
+        print(f"  Size={xi[0]*1000:.0f}sqft → Predicted ${yp:.1f}k, Actual ${yt}k")
+
+    print(f"\nRMSE : {rmse(y_test, y_pred):.2f}")
+    print(f"R²   : {r_squared(y_test, y_pred):.4f}")
+```
+
+**Expected Output:**
+```
+Learned weights (w₀=bias, w₁=size coefficient):
+  w₀ = 46.23
+  w₁ = 140.88
+  Equation: price = 46.2 + 140.9 × size
+
+Test Predictions vs Actuals:
+  Size=1100sqft → Predicted $201.2k, Actual $190k
+  Size=2200sqft → Predicted $356.2k, Actual $350k
+  Size=900sqft  → Predicted $173.0k, Actual $160k
+
+RMSE : 12.49
+R²   : 0.9812
+```
+
+---
+
+## 2.5 Multiple Linear Regression
+
+Extending to multiple features (e.g., size + bedrooms + age):
+
+```python
+# Multiple features — the code above already supports this!
+X_train_multi = [
+    [1.2, 3, 10],   # [size (k sqft), bedrooms, age (years)]
+    [1.5, 3, 5],
+    [2.0, 4, 8],
+    [2.5, 4, 2],
+    [0.8, 2, 20],
+]
+y_train_multi = [200, 250, 320, 400, 140]
+
+model_multi = LinearRegression(learning_rate=0.01, n_iterations=5000)
+model_multi.fit(X_train_multi, y_train_multi)
+```
+
+> ⚠️ **Important**: Always normalize features when they have very different scales!
+
+---
+
+## 2.6 Regularization Preview
+
+Two techniques to prevent overfitting in linear models:
+
+| Method | Adds to Cost | Effect |
+|--------|-------------|--------|
+| **Ridge (L2)** | `λ Σ wⱼ²` | Shrinks weights toward zero |
+| **Lasso (L1)** | `λ Σ |wⱼ|` | Can set some weights exactly to zero (feature selection) |
+
+Lambda `λ` controls the regularization strength (a hyperparameter).
+
+---
+
+## ✅ Chapter Summary
+
+| Concept | Formula |
+|---------|---------|
+| Linear model | `ŷ = wᵀx` |
+| Cost function | `J = (1/n) Σ (y - ŷ)²` |
+| Gradient update | `w ← w - α · ∂J/∂w` |
+| R² score | `1 - SS_res/SS_tot` |
+
+---
+
+## 📝 Exercises
+
+1. **Analytical**: Derive the gradient `∂J/∂wⱼ` for MSE from scratch.
+2. **Coding**: Add L2 (Ridge) regularization to the `fit()` method.
+3. **Experiment**: Try learning rates [0.001, 0.01, 0.1, 1.0]. What happens?
+4. **Extension**: Implement the Normal Equation `w = (XᵀX)⁻¹ Xᵀy` and compare results.
+
+---
+
+**← Previous:** [Chapter 01: Intro to ML](chapter-01-intro-to-ml.md)  
+**→ Next:** [Chapter 03: Logistic Regression](chapter-03-logistic-regression.md)

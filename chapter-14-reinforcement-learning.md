@@ -1,0 +1,270 @@
+# Chapter 14: Reinforcement Learning Basics
+
+> **Level**: Advanced | **Estimated Time**: 5–6 hours
+
+---
+
+## 14.1 Intuition
+
+RL frames learning as an **agent interacting with an environment**:
+
+```
+Agent → Action → Environment → (New State, Reward) → Agent → ...
+```
+
+The agent learns a **policy** (mapping from states to actions) that maximizes cumulative future reward.
+
+**Examples**: game-playing AI, robot locomotion, recommendation systems, autonomous driving.
+
+---
+
+## 14.2 Key Terminology
+
+| Term | Meaning |
+|------|---------|
+| **State (s)** | Current situation of the agent |
+| **Action (a)** | Choice the agent makes |
+| **Reward (r)** | Immediate feedback signal |
+| **Policy (π)** | Agent's strategy: π(s) → a |
+| **Episode** | One complete run (start to terminal state) |
+| **Return (G)** | Total discounted reward from step t: Gₜ = rₜ + γrₜ₊₁ + γ²rₜ₊₂ + ... |
+| **Value V(s)** | Expected return starting from state s |
+| **Q-value Q(s,a)** | Expected return taking action a in state s |
+
+**Discount factor γ** ∈ [0,1]: how much future rewards matter.  
+- γ=0: myopic (only immediate reward)  
+- γ=1: infinite horizon (values future equally)
+
+---
+
+## 14.3 The Bellman Equation
+
+The Q-value satisfies the recursive Bellman equation:
+
+```
+Q*(s, a) = E[r + γ · max_{a'} Q*(s', a')]
+```
+
+This is the foundation of Q-learning.
+
+---
+
+## 14.4 Q-Learning
+
+Q-learning learns the optimal Q-function directly (model-free, off-policy):
+
+```
+Q(s, a) ← Q(s, a) + α · [r + γ · max_{a'} Q(s', a') - Q(s, a)]
+```
+
+Where:
+- `α` = learning rate
+- `r + γ · max Q(s', a')` = TD target (Temporal Difference)
+- `r + γ · max Q(s', a') - Q(s, a)` = TD error
+
+**Exploration vs Exploitation**: ε-greedy policy:
+- With probability ε: explore (random action)
+- With probability 1-ε: exploit (best known action)
+
+---
+
+## 14.5 From-Scratch Python Implementation
+
+```python
+# q_learning.py
+import math, random
+
+# ── Grid World Environment ─────────────────────────────────────────────────
+
+class GridWorld:
+    """
+    Simple grid world:
+    - 'S' = start, 'G' = goal, 'W' = wall, '.' = empty
+    - Actions: 0=up, 1=right, 2=down, 3=left
+    """
+
+    GRID = [
+        ['S', '.', '.', '.'],
+        ['.', 'W', '.', 'W'],
+        ['.', '.', '.', '.'],
+        ['W', '.', 'W', 'G'],
+    ]
+
+    ACTIONS = {0: (-1,0), 1: (0,1), 2: (1,0), 3: (0,-1)}
+    ACTION_NAMES = {0:'↑', 1:'→', 2:'↓', 3:'←'}
+
+    def __init__(self):
+        self.rows = len(self.GRID)
+        self.cols = len(self.GRID[0])
+        self.reset()
+
+    def reset(self):
+        """Find start position."""
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if self.GRID[r][c] == 'S':
+                    self.state = (r, c)
+        return self.state
+
+    def step(self, action):
+        r, c = self.state
+        dr, dc = self.ACTIONS[action]
+        nr, nc = r + dr, c + dc
+
+        # Check bounds and walls
+        if (0 <= nr < self.rows and 0 <= nc < self.cols
+                and self.GRID[nr][nc] != 'W'):
+            self.state = (nr, nc)
+        # else: stay in place
+
+        cell = self.GRID[self.state[0]][self.state[1]]
+        if cell == 'G':
+            return self.state, 10.0, True    # reward=10, done=True
+        else:
+            return self.state, -0.1, False   # small step penalty
+
+    def is_done(self):
+        return self.GRID[self.state[0]][self.state[1]] == 'G'
+
+
+# ── Q-Learning Agent ──────────────────────────────────────────────────────
+
+class QLearningAgent:
+    """
+    Tabular Q-Learning agent.
+    Q-table: dict mapping (state, action) → Q-value.
+    """
+
+    def __init__(self, n_actions=4, alpha=0.1, gamma=0.99,
+                 epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
+        self.n_actions = n_actions
+        self.alpha = alpha        # learning rate
+        self.gamma = gamma        # discount factor
+        self.epsilon = epsilon    # exploration rate
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.Q = {}               # Q-table
+
+    def _q(self, state, action):
+        return self.Q.get((state, action), 0.0)
+
+    def choose_action(self, state):
+        """ε-greedy policy."""
+        if random.random() < self.epsilon:
+            return random.randint(0, self.n_actions - 1)
+        else:
+            q_vals = [self._q(state, a) for a in range(self.n_actions)]
+            return q_vals.index(max(q_vals))
+
+    def learn(self, state, action, reward, next_state, done):
+        """Q-learning update."""
+        if done:
+            td_target = reward
+        else:
+            best_next_q = max(self._q(next_state, a) for a in range(self.n_actions))
+            td_target = reward + self.gamma * best_next_q
+
+        td_error = td_target - self._q(state, action)
+        self.Q[(state, action)] = self._q(state, action) + self.alpha * td_error
+
+    def decay_epsilon(self):
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
+    def get_policy(self, states):
+        """Return greedy policy for given states."""
+        policy = {}
+        for s in states:
+            q_vals = [self._q(s, a) for a in range(self.n_actions)]
+            policy[s] = q_vals.index(max(q_vals))
+        return policy
+
+
+# ── Training Loop ──────────────────────────────────────────────────────────
+
+def train(n_episodes=500, max_steps=100):
+    env = GridWorld()
+    agent = QLearningAgent()
+
+    rewards_per_episode = []
+
+    for episode in range(n_episodes):
+        state = env.reset()
+        total_reward = 0.0
+
+        for step in range(max_steps):
+            action = agent.choose_action(state)
+            next_state, reward, done = env.step(action)
+            agent.learn(state, action, reward, next_state, done)
+            state = next_state
+            total_reward += reward
+
+            if done:
+                break
+
+        agent.decay_epsilon()
+        rewards_per_episode.append(total_reward)
+
+        if (episode + 1) % 100 == 0:
+            avg_reward = sum(rewards_per_episode[-100:]) / 100
+            print(f"  Episode {episode+1:4d}  Avg Reward: {avg_reward:6.2f}  ε={agent.epsilon:.3f}")
+
+    return agent, rewards_per_episode
+
+
+# ── Demo ──────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    print("Training Q-Learning Agent on GridWorld...")
+    print("Grid:")
+    for row in GridWorld.GRID:
+        print("  " + " ".join(row))
+    print()
+
+    agent, rewards = train(n_episodes=500)
+
+    print("\nLearned Policy:")
+    env = GridWorld()
+    all_states = [(r,c) for r in range(4) for c in range(4)
+                  if GridWorld.GRID[r][c] not in ('W','G')]
+    policy = agent.get_policy(all_states)
+
+    for r in range(4):
+        row_str = ""
+        for c in range(4):
+            cell = GridWorld.GRID[r][c]
+            if cell == 'W': row_str += " W "
+            elif cell == 'G': row_str += " G "
+            else:
+                action = policy.get((r,c), 0)
+                row_str += f" {GridWorld.ACTION_NAMES[action]} "
+        print(" " + row_str)
+
+    print(f"\nFinal ε: {agent.epsilon:.3f}")
+    print(f"Q-table entries: {len(agent.Q)}")
+```
+
+---
+
+## 14.6 RL Algorithm Zoo
+
+| Algorithm | Type | Key Idea |
+|-----------|------|---------|
+| Q-Learning | Model-free, off-policy | Tabular Q-table |
+| SARSA | Model-free, on-policy | Learn from actual actions |
+| DQN | Model-free, off-policy | Q-function as neural net |
+| Policy Gradient | Policy-based | Directly optimize policy |
+| Actor-Critic | Policy + Value | Two networks |
+| PPO | Policy-based | Stable policy updates |
+
+---
+
+## 📝 Exercises
+
+1. What is the difference between on-policy (SARSA) and off-policy (Q-Learning)?
+2. Implement **SARSA** — the update rule uses the actual next action instead of max.
+3. Why does Q-Learning need experience replay and target networks in the DQN setting?
+4. What happens if γ=1 in an infinite-horizon task?
+
+---
+
+**← Previous:** [Chapter 13: PCA](chapter-13-pca.md)  
+**→ Next:** [Chapter 15: Model Evaluation & Best Practices](chapter-15-model-evaluation.md)

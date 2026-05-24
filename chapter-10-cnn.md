@@ -1,0 +1,199 @@
+# Chapter 10: Convolutional Neural Networks (CNNs)
+
+> **Level**: Advanced | **Estimated Time**: 6–8 hours
+
+---
+
+## 10.1 Intuition
+
+CNNs are designed for **grid-structured data** (images, audio, time series).
+
+Key idea: instead of connecting every neuron to every pixel (expensive, no spatial awareness), slide a small **filter (kernel)** across the input and detect local patterns.
+
+- **Early layers**: detect edges, colors, textures
+- **Middle layers**: detect shapes, parts
+- **Deep layers**: detect objects, scenes
+
+---
+
+## 10.2 The Convolution Operation
+
+For a 2D image I and kernel K of size (f×f):
+
+```
+(I * K)[i,j] = Σₘ Σₙ I[i+m, j+n] · K[m,n]
+```
+
+Output size: `(H - f + 1) × (W - f + 1)` (no padding)  
+With padding p: `(H - f + 2p + 1) × (W - f + 2p + 1)`  
+With stride s: `⌊(H - f + 2p)/s⌋ + 1`
+
+**Parameter sharing**: the same kernel weights are used across all positions → massive parameter reduction vs fully connected.
+
+---
+
+## 10.3 Pooling
+
+Downsamples feature maps to reduce spatial dimensions:
+
+- **Max pooling**: take the max value in each window
+- **Average pooling**: take the mean
+
+Typical: 2×2 max pool with stride 2 → halves each dimension
+
+---
+
+## 10.4 Typical CNN Architecture
+
+```
+Input → [Conv → ReLU → Pool]* → Flatten → FC → FC → Softmax → Output
+```
+
+Where `*` means repeated N times (depth of the network).
+
+---
+
+## 10.5 From-Scratch Python Implementation
+
+```python
+# cnn.py — 1D Convolution for sequences (generalizes to 2D)
+import math, random
+
+# ── 2D Convolution (grayscale) ─────────────────────────────────────────────
+
+def conv2d(image, kernel, stride=1, padding=0):
+    """
+    2D convolution (single channel).
+    image: H×W matrix
+    kernel: f×f matrix
+    Returns output feature map.
+    """
+    H, W = len(image), len(image[0])
+    f = len(kernel)
+
+    # Pad image
+    if padding > 0:
+        padded = [[0.0]*(W+2*padding) for _ in range(H+2*padding)]
+        for i in range(H):
+            for j in range(W):
+                padded[i+padding][j+padding] = image[i][j]
+    else:
+        padded = image
+
+    pH, pW = len(padded), len(padded[0])
+    out_H = (pH - f) // stride + 1
+    out_W = (pW - f) // stride + 1
+
+    output = [[0.0]*out_W for _ in range(out_H)]
+    for i in range(out_H):
+        for j in range(out_W):
+            val = 0.0
+            for m in range(f):
+                for n in range(f):
+                    val += padded[i*stride+m][j*stride+n] * kernel[m][n]
+            output[i][j] = val
+    return output
+
+def max_pool2d(feature_map, pool_size=2, stride=2):
+    """2D max pooling."""
+    H, W = len(feature_map), len(feature_map[0])
+    out_H = (H - pool_size) // stride + 1
+    out_W = (W - pool_size) // stride + 1
+    output = [[0.0]*out_W for _ in range(out_H)]
+    for i in range(out_H):
+        for j in range(out_W):
+            vals = [
+                feature_map[i*stride+m][j*stride+n]
+                for m in range(pool_size)
+                for n in range(pool_size)
+            ]
+            output[i][j] = max(vals)
+    return output
+
+def relu_2d(feature_map):
+    return [[max(0.0, val) for val in row] for row in feature_map]
+
+def flatten(feature_maps):
+    """Flatten list of 2D feature maps to 1D vector."""
+    result = []
+    for fm in feature_maps:
+        for row in fm:
+            result.extend(row)
+    return result
+
+# ── Edge Detection Demo ────────────────────────────────────────────────────
+
+def apply_filters(image, filters):
+    """Apply multiple filters and return feature maps."""
+    return [conv2d(image, kernel, stride=1, padding=1) for kernel in filters]
+
+# ── Demo: Detect edges in a simple 5x5 "image" ────────────────────────────
+if __name__ == "__main__":
+    # 5x5 grayscale image (pixel values 0–1)
+    image = [
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 1.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+    ]
+
+    # Sobel edge detection kernels
+    sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
+    sobel_y = [[-1,-2,-1], [ 0, 0, 0], [ 1, 2, 1]]
+
+    edge_x = conv2d(image, sobel_x, stride=1, padding=1)
+    edge_y = conv2d(image, sobel_y, stride=1, padding=1)
+
+    print("Horizontal edge map (Sobel X):")
+    for row in edge_x:
+        print(" ".join(f"{v:5.1f}" for v in row))
+
+    print("\nMax Pooling (2×2) of edge_x:")
+    pooled = max_pool2d(edge_x)
+    for row in pooled:
+        print(" ".join(f"{v:5.1f}" for v in row))
+
+    # Flatten for FC layer
+    flat = flatten([pooled])
+    print(f"\nFlattened: {[f'{v:.1f}' for v in flat]}")
+    print(f"Ready for FC layer with {len(flat)} inputs")
+```
+
+---
+
+## 10.6 Key CNN Concepts
+
+| Concept | Purpose |
+|---------|---------|
+| Convolution | Local pattern detection with shared weights |
+| Padding | Control output size; preserve border info |
+| Stride | Control downsampling rate |
+| Pooling | Reduce spatial dimensions, add invariance |
+| Feature maps | Multiple filters → multiple channels |
+| Parameter sharing | Each kernel reused across entire input |
+
+---
+
+## 10.7 Classic Architectures (Reference)
+
+| Model | Year | Key Innovation |
+|-------|------|----------------|
+| LeNet-5 | 1998 | First practical CNN |
+| AlexNet | 2012 | Deep CNN + ReLU + Dropout |
+| VGGNet | 2014 | Very deep, small 3×3 kernels |
+| ResNet | 2015 | Skip connections (residual learning) |
+| EfficientNet | 2019 | Compound scaling |
+
+---
+
+## 📝 Exercises
+
+1. Implement `conv2d_backward` to compute gradients for the kernel (needed for training).
+2. What is the **receptive field** of a pixel after 3 conv layers with 3×3 kernels?
+3. Why does parameter sharing make CNNs dramatically more efficient than fully connected nets on images?
+
+---
+
+**← Previous:** [Chapter 09: Neural Networks](chapter-09-neural-networks.md)  
+**→ Next:** [Chapter 11: Recurrent Neural Networks](chapter-11-rnn.md)

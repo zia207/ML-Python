@@ -1,0 +1,260 @@
+# Chapter 09: Neural Networks (Multilayer Perceptron)
+
+> **Level**: Intermediate–Advanced | **Estimated Time**: 6–8 hours
+
+---
+
+## 9.1 Intuition
+
+A neural network is a layered architecture of interconnected "neurons."  
+Each layer transforms its input and passes it forward — like an assembly line of feature detectors.
+
+Inspired by (but not a literal model of) biological neurons.
+
+---
+
+## 9.2 The Perceptron (Building Block)
+
+A single neuron computes:
+```
+z = w₀ + w₁x₁ + ... + wₚxₚ = wᵀx + b
+output = activation(z)
+```
+
+Common activation functions:
+
+| Name | Formula | Use |
+|------|---------|-----|
+| Sigmoid | `1/(1+e⁻ᶻ)` | Binary output |
+| ReLU | `max(0, z)` | Hidden layers (most popular) |
+| Tanh | `(eᶻ-e⁻ᶻ)/(eᶻ+e⁻ᶻ)` | Hidden layers, zero-centered |
+| Softmax | `eᶻⱼ / Σeᶻᵢ` | Multi-class output |
+
+---
+
+## 9.3 Forward Pass
+
+For a network with L layers:
+```
+a⁽⁰⁾ = x                      (input layer)
+z⁽ˡ⁾ = W⁽ˡ⁾ · a⁽ˡ⁻¹⁾ + b⁽ˡ⁾  (pre-activation)
+a⁽ˡ⁾ = f(z⁽ˡ⁾)                (post-activation)
+ŷ = a⁽ᴸ⁾                      (output layer)
+```
+
+---
+
+## 9.4 Backpropagation
+
+Backprop = **chain rule** of calculus applied to the computational graph.
+
+For each parameter, compute how the loss changes with respect to that parameter:
+```
+∂L/∂W⁽ˡ⁾ = ∂L/∂z⁽ˡ⁾ · (a⁽ˡ⁻¹⁾)ᵀ
+∂L/∂b⁽ˡ⁾ = ∂L/∂z⁽ˡ⁾
+
+δ⁽ˡ⁾ = ∂L/∂z⁽ˡ⁾ = (W⁽ˡ⁺¹⁾)ᵀ · δ⁽ˡ⁺¹⁾  ⊙  f'(z⁽ˡ⁾)
+```
+
+Where `⊙` is element-wise multiplication and `f'` is the derivative of the activation.
+
+---
+
+## 9.5 From-Scratch Python Implementation
+
+```python
+# neural_network.py
+import math, random
+
+def sigmoid(z): return 1.0/(1.0+math.exp(-max(-500,min(500,z))))
+def sigmoid_deriv(a): return a * (1 - a)
+def relu(z): return max(0.0, z)
+def relu_deriv(z): return 1.0 if z > 0 else 0.0
+def tanh_fn(z): return math.tanh(z)
+def tanh_deriv(a): return 1.0 - a**2   # given a = tanh(z)
+
+class DenseLayer:
+    """Fully connected layer."""
+    def __init__(self, n_in, n_out, activation='relu'):
+        scale = math.sqrt(2.0 / n_in)   # He initialization
+        self.W = [[random.gauss(0, scale) for _ in range(n_in)] for _ in range(n_out)]
+        self.b = [0.0] * n_out
+        self.activation = activation
+        # Cache for backprop
+        self.z = None
+        self.a = None
+        self.a_prev = None
+
+    def _act(self, z):
+        if self.activation == 'sigmoid': return sigmoid(z)
+        if self.activation == 'relu': return relu(z)
+        if self.activation == 'tanh': return tanh_fn(z)
+        return z  # linear
+
+    def _act_deriv(self, val, z):
+        if self.activation == 'sigmoid': return sigmoid_deriv(val)
+        if self.activation == 'relu': return relu_deriv(z)
+        if self.activation == 'tanh': return tanh_deriv(val)
+        return 1.0
+
+    def forward(self, a_prev):
+        self.a_prev = a_prev
+        n_out = len(self.W)
+        self.z = [sum(self.W[j][i]*a_prev[i] for i in range(len(a_prev))) + self.b[j]
+                  for j in range(n_out)]
+        self.a = [self._act(z) for z in self.z]
+        return self.a
+
+    def backward(self, delta_next):
+        """delta_next: gradient w.r.t. this layer's output (a)."""
+        n_out = len(self.W)
+        n_in  = len(self.a_prev)
+
+        # Gradient through activation
+        delta = [delta_next[j] * self._act_deriv(self.a[j], self.z[j])
+                 for j in range(n_out)]
+
+        # Gradients for W and b
+        dW = [[delta[j] * self.a_prev[i] for i in range(n_in)] for j in range(n_out)]
+        db = delta[:]
+
+        # Gradient to pass back to previous layer
+        delta_prev = [sum(self.W[j][i] * delta[j] for j in range(n_out))
+                      for i in range(n_in)]
+
+        return delta_prev, dW, db
+
+
+class MLP:
+    """
+    Multilayer Perceptron.
+    Supports arbitrary architectures, binary and multiclass classification.
+    Pure Python — no ML libraries.
+    """
+
+    def __init__(self, layer_sizes, activations=None, lr=0.01, n_epochs=100):
+        """
+        layer_sizes: e.g. [2, 4, 4, 1] → 2 inputs, two hidden layers, 1 output
+        activations: list of activations per layer (excluding input)
+        """
+        n_layers = len(layer_sizes) - 1
+        if activations is None:
+            activations = ['relu'] * (n_layers - 1) + ['sigmoid']
+
+        self.layers = [
+            DenseLayer(layer_sizes[i], layer_sizes[i+1], activations[i])
+            for i in range(n_layers)
+        ]
+        self.lr = lr
+        self.n_epochs = n_epochs
+        self.loss_history = []
+
+    def _forward(self, x):
+        a = x
+        for layer in self.layers:
+            a = layer.forward(a)
+        return a
+
+    def _bce_loss(self, y_hat, y_true):
+        """Binary cross-entropy loss."""
+        losses = []
+        for yh, yt in zip(y_hat, y_true):
+            yh = max(1e-15, min(1-1e-15, yh[0]))
+            losses.append(-(yt*math.log(yh) + (1-yt)*math.log(1-yh)))
+        return sum(losses)/len(losses)
+
+    def fit(self, X, y):
+        n = len(X)
+        for epoch in range(self.n_epochs):
+            # Shuffle
+            indices = list(range(n))
+            random.shuffle(indices)
+            total_loss = 0.0
+
+            for i in indices:
+                xi = X[i]
+                yi = y[i]
+
+                # Forward pass
+                output = self._forward(xi)
+                yh = output[0]
+                yh = max(1e-15, min(1-1e-15, yh))
+                total_loss += -(yi*math.log(yh) + (1-yi)*math.log(1-yh))
+
+                # Output gradient: d(BCE)/d(yh) for sigmoid output = yh - yi
+                delta = [yh - yi]
+
+                # Backward pass through layers (reversed)
+                grads = []
+                for layer in reversed(self.layers):
+                    delta, dW, db = layer.backward(delta)
+                    grads.append((dW, db))
+
+                grads.reverse()
+
+                # Update weights
+                for layer, (dW, db) in zip(self.layers, grads):
+                    for j in range(len(layer.W)):
+                        for k in range(len(layer.W[j])):
+                            layer.W[j][k] -= self.lr * dW[j][k]
+                        layer.b[j] -= self.lr * db[j]
+
+            self.loss_history.append(total_loss / n)
+
+        return self
+
+    def predict_proba(self, X):
+        return [self._forward(xi)[0] for xi in X]
+
+    def predict(self, X, threshold=0.5):
+        return [1 if p >= threshold else 0 for p in self.predict_proba(X)]
+
+
+# ── Demo: XOR problem (impossible for linear models) ──────────────────────
+if __name__ == "__main__":
+    X = [[0,0], [0,1], [1,0], [1,1]]
+    y = [0, 1, 1, 0]
+
+    mlp = MLP(
+        layer_sizes=[2, 4, 1],
+        activations=['relu', 'sigmoid'],
+        lr=0.1,
+        n_epochs=2000
+    )
+    mlp.fit(X, y)
+
+    print("XOR Neural Network Results:")
+    for xi, yi in zip(X, y):
+        prob = mlp.predict_proba([xi])[0]
+        pred = 1 if prob >= 0.5 else 0
+        print(f"  {xi} → prob={prob:.3f}  pred={pred}  true={yi}  {'✓' if pred==yi else '✗'}")
+
+    print(f"\nFinal Training Loss: {mlp.loss_history[-1]:.4f}")
+```
+
+---
+
+## 9.6 Key Concepts Summary
+
+| Concept | Description |
+|---------|-------------|
+| Forward pass | Input → activations → output |
+| Loss function | Measures prediction error |
+| Backpropagation | Chain rule: compute gradients layer by layer |
+| Weight update | `W ← W - lr · ∂L/∂W` |
+| Vanishing gradient | ReLU alleviates this vs sigmoid/tanh |
+| He initialization | Scale weights by √(2/n_in) for ReLU layers |
+
+---
+
+## 📝 Exercises
+
+1. Add **L2 regularization** (weight decay) to the weight update.
+2. Implement **mini-batch gradient descent** (update after B samples, not 1).
+3. Add **momentum** to the optimizer: `v ← βv + (1-β)∂L/∂W; W ← W - lr·v`
+4. Implement a **softmax output layer** for multiclass classification.
+
+---
+
+**← Previous:** [Chapter 08: Ensemble Methods](chapter-08-ensemble-methods.md)  
+**→ Next:** [Chapter 10: Convolutional Neural Networks](chapter-10-cnn.md)

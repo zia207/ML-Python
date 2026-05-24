@@ -1,0 +1,242 @@
+# Chapter 11: Recurrent Neural Networks (RNNs)
+
+> **Level**: Advanced | **Estimated Time**: 6–8 hours
+
+---
+
+## 11.1 Intuition
+
+Standard neural networks process inputs independently. But many problems are **sequential**: predicting the next word requires knowing the previous words.
+
+RNNs maintain a **hidden state** that acts as memory, passed from one time step to the next.
+
+---
+
+## 11.2 The Vanilla RNN
+
+At each time step t:
+```
+hₜ = tanh(Wₓₓ · xₜ + Wₕₕ · hₜ₋₁ + bₕ)
+yₜ = Wᵧₕ · hₜ + bᵧ
+```
+
+Where:
+- `xₜ` — input at step t
+- `hₜ` — hidden state (memory) at step t
+- `yₜ` — output at step t
+- `Wₓₓ, Wₕₕ, Wᵧₕ` — weight matrices (shared across all time steps!)
+
+---
+
+## 11.3 The Vanishing Gradient Problem
+
+During backpropagation through time (BPTT), gradients are multiplied by Wₕₕ at each step.
+
+```
+∂L/∂h₁ = ∂L/∂hₜ · (Wₕₕ)^(t-1) · ...
+```
+
+If the largest eigenvalue of Wₕₕ < 1: gradients **vanish** → model can't learn long-range dependencies.  
+If > 1: gradients **explode**.
+
+**Solution**: LSTM (Long Short-Term Memory) and GRU cells.
+
+---
+
+## 11.4 LSTM: Long Short-Term Memory
+
+LSTM introduces a **cell state** (Cₜ) — a separate "conveyor belt" of memory — plus three gates:
+
+```
+Forget gate:  fₜ = σ(Wf · [hₜ₋₁, xₜ] + bf)      # what to forget
+Input gate:   iₜ = σ(Wi · [hₜ₋₁, xₜ] + bi)       # what to update
+Candidate:    C̃ₜ = tanh(Wc · [hₜ₋₁, xₜ] + bc)    # new candidate values
+Cell update:  Cₜ = fₜ ⊙ Cₜ₋₁ + iₜ ⊙ C̃ₜ
+Output gate:  oₜ = σ(Wo · [hₜ₋₁, xₜ] + bo)
+Hidden state: hₜ = oₜ ⊙ tanh(Cₜ)
+```
+
+The cell state `Cₜ` flows through time with only element-wise operations → gradients can flow freely over long distances.
+
+---
+
+## 11.5 From-Scratch Python Implementation
+
+```python
+# rnn.py
+import math, random
+
+def sigmoid(z): return 1/(1+math.exp(-max(-500,min(500,z))))
+def tanh_fn(z): return math.tanh(z)
+
+def vec_add(a, b): return [x+y for x,y in zip(a,b)]
+def vec_mul(a, b): return [x*y for x,y in zip(a,b)]   # element-wise
+def mat_vec(M, v): return [sum(M[i][j]*v[j] for j in range(len(v))) for i in range(len(M))]
+
+def rand_mat(rows, cols, scale=0.1):
+    return [[random.gauss(0, scale) for _ in range(cols)] for _ in range(rows)]
+
+def rand_vec(size, scale=0.0): return [random.gauss(0, scale) for _ in range(size)]
+
+
+class VanillaRNNCell:
+    """Single step of a Vanilla RNN."""
+
+    def __init__(self, input_size, hidden_size):
+        self.Wxh = rand_mat(hidden_size, input_size, 0.1)
+        self.Whh = rand_mat(hidden_size, hidden_size, 0.1)
+        self.bh  = rand_vec(hidden_size)
+
+    def forward(self, x, h_prev):
+        """h_t = tanh(Wxh·x + Whh·h_prev + bh)"""
+        z = vec_add(vec_add(mat_vec(self.Wxh, x), mat_vec(self.Whh, h_prev)), self.bh)
+        h = [tanh_fn(zi) for zi in z]
+        return h
+
+
+class LSTMCell:
+    """
+    Single step of an LSTM cell.
+    Pure Python — no ML libraries.
+    """
+
+    def __init__(self, input_size, hidden_size):
+        d = input_size + hidden_size
+        # Weight matrices for [forget, input, candidate, output] gates
+        self.Wf = rand_mat(hidden_size, d, 0.1)
+        self.Wi = rand_mat(hidden_size, d, 0.1)
+        self.Wc = rand_mat(hidden_size, d, 0.1)
+        self.Wo = rand_mat(hidden_size, d, 0.1)
+        self.bf = [1.0]*hidden_size   # Forget gate bias initialized to 1
+        self.bi = rand_vec(hidden_size)
+        self.bc = rand_vec(hidden_size)
+        self.bo = rand_vec(hidden_size)
+
+    def forward(self, x, h_prev, c_prev):
+        """
+        Returns (h_t, c_t) — new hidden state and cell state.
+        """
+        concat = x + h_prev   # [x; h_prev]
+
+        f = [sigmoid(zi) for zi in vec_add(mat_vec(self.Wf, concat), self.bf)]
+        i = [sigmoid(zi) for zi in vec_add(mat_vec(self.Wi, concat), self.bi)]
+        c_tilde = [tanh_fn(zi) for zi in vec_add(mat_vec(self.Wc, concat), self.bc)]
+        o = [sigmoid(zi) for zi in vec_add(mat_vec(self.Wo, concat), self.bo)]
+
+        c_t = vec_add(vec_mul(f, c_prev), vec_mul(i, c_tilde))
+        h_t = vec_mul(o, [tanh_fn(ci) for ci in c_t])
+
+        return h_t, c_t
+
+
+class SequenceClassifier:
+    """
+    RNN/LSTM-based sequence classifier.
+    Many-to-one: reads T time steps, predicts one class.
+    """
+
+    def __init__(self, input_size, hidden_size, output_size,
+                 cell_type='lstm', lr=0.01):
+        self.hidden_size = hidden_size
+        self.cell_type = cell_type
+        self.lr = lr
+
+        if cell_type == 'lstm':
+            self.cell = LSTMCell(input_size, hidden_size)
+        else:
+            self.cell = VanillaRNNCell(input_size, hidden_size)
+
+        # Output layer
+        self.Wy = rand_mat(output_size, hidden_size, 0.1)
+        self.by = rand_vec(output_size)
+
+    def forward(self, sequence):
+        """Run sequence through RNN, return final output."""
+        h = [0.0] * self.hidden_size
+        c = [0.0] * self.hidden_size
+
+        for x in sequence:
+            if self.cell_type == 'lstm':
+                h, c = self.cell.forward(x, h, c)
+            else:
+                h = self.cell.forward(x, h)
+
+        # Output from final hidden state
+        logits = vec_add(mat_vec(self.Wy, h), self.by)
+
+        # Softmax for multiclass
+        max_l = max(logits)
+        exp_l = [math.exp(li - max_l) for li in logits]
+        total = sum(exp_l)
+        probs = [e/total for e in exp_l]
+        return probs, h
+
+
+# ── Demo ───────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # Sequence classification: classify ascending vs descending sequences
+    def make_data(n=50):
+        X, y = [], []
+        for _ in range(n):
+            if random.random() > 0.5:
+                seq = sorted([random.random() for _ in range(5)])
+                X.append([[v] for v in seq]); y.append(0)  # ascending
+            else:
+                seq = sorted([random.random() for _ in range(5)], reverse=True)
+                X.append([[v] for v in seq]); y.append(1)  # descending
+        return X, y
+
+    X_train, y_train = make_data(100)
+    X_test, y_test   = make_data(20)
+
+    model = SequenceClassifier(input_size=1, hidden_size=8, output_size=2,
+                               cell_type='lstm', lr=0.05)
+
+    # Simple training loop (without full BPTT for brevity)
+    print("LSTM Sequence Classifier Demo")
+    correct = sum(
+        (0 if model.forward(X_test[i])[0][0] > 0.5 else 1) == y_test[i]
+        for i in range(len(X_test))
+    )
+    print(f"Initial Test Accuracy (random): {correct/len(X_test):.2f}")
+    print("\nNote: Full BPTT training not shown for brevity.")
+    print("Key concepts: hidden state, cell state, forget/input/output gates.")
+```
+
+---
+
+## 11.6 GRU: Gated Recurrent Unit
+
+A simpler alternative to LSTM with only two gates:
+```
+Update gate: zₜ = σ(Wz · [hₜ₋₁, xₜ])
+Reset gate:  rₜ = σ(Wr · [hₜ₋₁, xₜ])
+Candidate:   h̃ₜ = tanh(W · [rₜ⊙hₜ₋₁, xₜ])
+New state:   hₜ = (1 - zₜ)⊙hₜ₋₁ + zₜ⊙h̃ₜ
+```
+
+GRU is computationally cheaper than LSTM with comparable performance on many tasks.
+
+---
+
+## ✅ Chapter Summary
+
+| Model | Memory | Gates | Best For |
+|-------|--------|-------|----------|
+| Vanilla RNN | Hidden state | None | Short sequences |
+| LSTM | Cell + hidden state | 3 gates | Long-range dependencies |
+| GRU | Hidden state | 2 gates | Balance of speed/quality |
+
+---
+
+## 📝 Exercises
+
+1. Implement the GRU cell `forward()` method.
+2. Why does the **forget gate bias initialized to 1** help training?
+3. What is **truncated BPTT** and why is it needed for long sequences?
+4. Explain the **vanishing gradient** problem using the chain rule mathematically.
+
+---
+
+**← Previous:** [Chapter 10: CNNs](chapter-10-cnn.md)  
+**→ Next:** [Chapter 12: K-Means Clustering](chapter-12-kmeans.md)

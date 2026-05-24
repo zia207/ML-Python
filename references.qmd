@@ -1,0 +1,439 @@
+---
+title: "References & Further Reading"
+subtitle: "Curated resources for every chapter — textbooks, papers, courses, and tools"
+date: last-modified
+toc: true
+toc-depth: 3
+toc-title: "Jump To"
+number-sections: false
+---
+
+::: {.callout-tip appearance="minimal"}
+Resources are organized to match the tutorial chapters. Each entry is annotated with its **difficulty level**, **format**, and **why it matters**.
+:::
+
+---
+
+## 📚 Foundational Textbooks
+
+These are the canonical references for the entire tutorial. Keep them bookmarked.
+
+| Book | Authors | Year | Level | Best For |
+|------|---------|------|-------|----------|
+| *Pattern Recognition and Machine Learning* | Bishop | 2006 | ★★★ Intermediate–Advanced | Deep probabilistic foundations |
+| *An Introduction to Statistical Learning* (ISLR) | James, Witten, Hastie, Tibshirani | 2021 | ★★ Beginner–Intermediate | Conceptual clarity, R/Python labs |
+| *The Elements of Statistical Learning* (ESL) | Hastie, Tibshirani, Friedman | 2009 | ★★★ Advanced | Rigorous mathematical treatment |
+| *Deep Learning* | Goodfellow, Bengio, Courville | 2016 | ★★★ Advanced | Neural networks, backpropagation, generative models |
+| *Artificial Intelligence: A Modern Approach* | Russell & Norvig | 2020 | ★★ Intermediate | Broad AI context including search, planning, RL |
+| *Mathematics for Machine Learning* | Deisenroth, Faisal, Ong | 2020 | ★★ Intermediate | Linear algebra, calculus, probability for ML |
+| *Reinforcement Learning: An Introduction* | Sutton & Barto | 2018 | ★★★ Advanced | Definitive RL textbook |
+| *Hands-On Machine Learning* | Géron | 2022 | ★ Beginner | Practical, scikit-learn / TensorFlow |
+
+::: {.callout-note}
+**Free downloads**: ISLR, ESL, Deep Learning, Mathematics for ML, and Sutton & Barto are all freely available as PDFs from the authors' official websites.
+:::
+
+---
+
+## 🧮 Mathematical Prerequisites
+
+*Relevant to: Chapter 00 — Prerequisites & Setup*
+
+### Linear Algebra
+
+- **3Blue1Brown — Essence of Linear Algebra** (YouTube series, 2016)  
+  *Visual, intuitive introduction to vectors, matrices, and transformations. Best 3 hours you'll spend on linear algebra.*  
+  → [youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab](https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab)
+
+- **Gilbert Strang — Linear Algebra (MIT 18.06)** (Lecture series)  
+  *The gold standard university course. Covers everything from dot products to SVD.*  
+  → [ocw.mit.edu/courses/18-06sc-linear-algebra-fall-2011](https://ocw.mit.edu/courses/18-06sc-linear-algebra-fall-2011/)
+
+- Deisenroth, M.P., Faisal, A.A., & Ong, C.S. (2020). *Mathematics for Machine Learning*, Ch. 2–4. Cambridge University Press.
+
+### Calculus & Optimization
+
+- **3Blue1Brown — Essence of Calculus** (YouTube series, 2017)  
+  *Builds intuition for derivatives, chain rule, and gradients — exactly what you need for backpropagation.*  
+  → [youtube.com/playlist?list=PLZHQObOWTQDMsr9K-rj53DwVRMYO3t5Yr](https://www.youtube.com/playlist?list=PLZHQObOWTQDMsr9K-rj53DwVRMYO3t5Yr)
+
+- Nocedal, J. & Wright, S. (2006). *Numerical Optimization* (2nd ed.). Springer.  
+  *Comprehensive reference on gradient descent, quasi-Newton methods, constrained optimization.*
+
+### Probability & Statistics
+
+- **Khan Academy — Statistics and Probability** (Free course)  
+  *Covers all the basics: distributions, Bayes' theorem, expectation, variance.*  
+  → [khanacademy.org/math/statistics-probability](https://www.khanacademy.org/math/statistics-probability)
+
+- DeGroot, M.H. & Schervish, M.J. (2012). *Probability and Statistics* (4th ed.). Pearson.
+
+---
+
+## 🟢 Beginner Chapters
+
+### Chapter 01 — Introduction to Machine Learning
+
+- Mitchell, T. (1997). *Machine Learning*. McGraw-Hill.  
+  *Classic textbook; Chapter 1 gives the cleanest definition of ML you'll find.*
+
+- Domingos, P. (2012). A few useful things to know about machine learning. *Communications of the ACM*, 55(10), 78–87.  
+  *Readable 9-page overview; covers the bias-variance tradeoff, overfitting, feature engineering.*
+
+- **Andrew Ng — Machine Learning Specialization** (Coursera, 2022)  
+  *Best entry-point structured course. Covers supervised, unsupervised, and RL across three courses.*  
+  → [coursera.org/specializations/machine-learning-introduction](https://www.coursera.org/specializations/machine-learning-introduction)
+
+### Chapter 02 — Linear Regression
+
+- James et al. (2021). *ISLR*, Ch. 3: Linear Regression. *(Free PDF available)*  
+  *Excellent chapter covering simple and multiple regression, subset selection, and regularization.*
+
+- Hastie et al. (2009). *ESL*, Ch. 3: Linear Methods for Regression.  
+  *More rigorous treatment including geometric interpretation and the hat matrix.*
+
+- Ng, A. (2022). *CS229 Lecture Notes: Linear Regression and Gradient Descent*.  
+  → [cs229.stanford.edu/notes2022fall/main_notes.pdf](https://cs229.stanford.edu/notes2022fall/main_notes.pdf)
+
+- Gauss, C.F. (1809). *Theoria Motus Corporum Coelestium*. *(Historical)*  
+  *The original least-squares derivation — over 200 years old and still the foundation.*
+
+### Chapter 03 — Logistic Regression
+
+- Cox, D.R. (1958). The regression analysis of binary sequences. *Journal of the Royal Statistical Society*, Series B, 20(2), 215–232.  
+  *The original logistic regression paper.*
+
+- James et al. (2021). *ISLR*, Ch. 4: Classification. *(Free PDF)*  
+  *Clear coverage of logistic regression, LDA, and decision boundaries.*
+
+- Ng, A. (2022). *CS229 Lecture Notes: Classification and Logistic Regression*.  
+  *Derives the log-likelihood and gradient update from first principles.*
+
+- **StatQuest: Logistic Regression** (YouTube, Josh Starmer)  
+  *Clear visual explanation of odds, log-odds, and the sigmoid function.*  
+  → [youtu.be/yIYKR4sgzI8](https://youtu.be/yIYKR4sgzI8)
+
+### Chapter 04 — K-Nearest Neighbors
+
+- Cover, T. & Hart, P. (1967). Nearest neighbor pattern classification. *IEEE Transactions on Information Theory*, 13(1), 21–27.  
+  *The foundational KNN paper. Proves that KNN error rate is at most twice the Bayes error.*
+
+- Fix, E. & Hodges, J.L. (1951). *Discriminatory Analysis, Nonparametric Discrimination: Consistency Properties*. USAF School of Aviation Medicine Technical Report.  
+  *The original unpublished report that introduced the KNN concept.*
+
+- Bellman, R. (1961). *Adaptive Control Processes: A Guided Tour*. Princeton University Press.  
+  *Where the term "curse of dimensionality" was coined.*
+
+- James et al. (2021). *ISLR*, Ch. 2.2.3: K-Nearest Neighbors.
+
+### Chapter 05 — Naive Bayes
+
+- Bayes, T. (1763). An essay towards solving a problem in the doctrine of chances. *Philosophical Transactions of the Royal Society*, 53, 370–418. *(Historical)*  
+  *The original Bayes' theorem paper, published posthumously.*
+
+- McCallum, A. & Nigam, K. (1998). A comparison of event models for Naive Bayes text classification. *AAAI Workshop on Learning for Text Categorization*.  
+  *Compares Bernoulli NB vs Multinomial NB for document classification — highly cited.*
+
+- Zhang, H. (2004). The optimality of Naive Bayes. *FLAIRS Conference*.  
+  *Explains why the "naive" independence assumption works surprisingly well in practice.*
+
+- Manning, C.D., Raghavan, P., & Schütze, H. (2008). *Introduction to Information Retrieval*, Ch. 13. Cambridge University Press.  
+  *Excellent treatment of NB for text; freely available online.*
+
+---
+
+## 🟡 Intermediate Chapters
+
+### Chapter 06 — Decision Trees
+
+- Breiman, L., Friedman, J., Olshen, R., & Stone, C. (1984). *Classification and Regression Trees*. Wadsworth.  
+  *The original CART book — introduced Gini impurity and the cost-complexity pruning algorithm.*
+
+- Quinlan, J.R. (1986). Induction of decision trees. *Machine Learning*, 1(1), 81–106.  
+  *Introduced the ID3 algorithm using information gain. Foundational.*
+
+- Quinlan, J.R. (1993). *C4.5: Programs for Machine Learning*. Morgan Kaufmann.  
+  *Extension of ID3 with continuous features, pruning, and missing values.*
+
+- James et al. (2021). *ISLR*, Ch. 8: Tree-Based Methods.  
+  *Accessible coverage with comparison to linear models.*
+
+- **StatQuest: Decision Trees** (YouTube)  
+  → [youtu.be/_L39rN6gz7Y](https://youtu.be/_L39rN6gz7Y)
+
+### Chapter 07 — Support Vector Machines
+
+- Cortes, C. & Vapnik, V. (1995). Support-vector networks. *Machine Learning*, 20(3), 273–297.  
+  *The original SVM paper introducing the soft-margin formulation.*
+
+- Boser, B.E., Guyon, I.M., & Vapnik, V.N. (1992). A training algorithm for optimal margin classifiers. *COLT*, 144–152.  
+  *Introduced the kernel trick for non-linear SVMs.*
+
+- Schölkopf, B. & Smola, A. (2002). *Learning with Kernels*. MIT Press.  
+  *Comprehensive reference on kernel methods and the reproducing kernel Hilbert space framework.*
+
+- Burges, C.J.C. (1998). A tutorial on support vector machines for pattern recognition. *Data Mining and Knowledge Discovery*, 2(2), 121–167.  
+  *Accessible 46-page tutorial — best single introduction to the full SVM theory.*
+
+- Chang, C.C. & Lin, C.J. (2011). LIBSVM: A library for support vector machines. *ACM TIST*, 2(3), 1–27.  
+  *The widely-used SVM implementation; the paper explains SMO algorithm details.*
+
+### Chapter 08 — Ensemble Methods
+
+- Breiman, L. (1996). Bagging predictors. *Machine Learning*, 24(2), 123–140.  
+  *Introduced bootstrap aggregating — the core idea behind Random Forests.*
+
+- Breiman, L. (2001). Random forests. *Machine Learning*, 45(1), 5–32.  
+  *The definitive Random Forest paper. One of the most cited ML papers of all time.*
+
+- Freund, Y. & Schapire, R.E. (1997). A decision-theoretic generalization of on-line learning and an application to boosting. *Journal of Computer and System Sciences*, 55(1), 119–139.  
+  *The original AdaBoost paper. Introduced the idea of adaptively reweighting samples.*
+
+- Friedman, J.H. (2001). Greedy function approximation: A gradient boosting machine. *Annals of Statistics*, 29(5), 1189–1232.  
+  *Derived gradient boosting from a functional gradient descent perspective.*
+
+- Chen, T. & Guestrin, C. (2016). XGBoost: A scalable tree boosting system. *KDD*, 785–794.  
+  *The paper behind the competition-winning XGBoost library — explains regularized trees.*
+
+---
+
+## 🔴 Advanced Chapters
+
+### Chapter 09 — Neural Networks (MLP)
+
+- Rosenblatt, F. (1958). The perceptron: A probabilistic model for information storage and organization in the brain. *Psychological Review*, 65(6), 386–408.  
+  *Introduced the perceptron — the first trainable single-layer neural network.*
+
+- Rumelhart, D.E., Hinton, G.E., & Williams, R.J. (1986). Learning representations by back-propagating errors. *Nature*, 323, 533–536.  
+  *Popularized backpropagation — the algorithm that made deep learning possible.*
+
+- Hornik, K., Stinchcombe, M., & White, H. (1989). Multilayer feedforward networks are universal approximators. *Neural Networks*, 2(5), 359–366.  
+  *Proves that a single hidden layer can approximate any continuous function — the Universal Approximation Theorem.*
+
+- LeCun, Y., Bengio, Y., & Hinton, G. (2015). Deep learning. *Nature*, 521, 436–444.  
+  *Accessible 9-page overview of the deep learning revolution by three of its founders.*
+
+- He, K., Zhang, X., Ren, S., & Sun, J. (2015). Delving deep into rectifiers: Surpassing human-level performance on ImageNet classification. *ICCV*, 1026–1034.  
+  *Introduced He (Kaiming) initialization — the weight init method used in this tutorial.*
+
+- **3Blue1Brown — Neural Networks** (YouTube series, 2017)  
+  *The most-watched neural network explainer. Covers forward pass, gradient descent, and backpropagation visually.*  
+  → [youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi](https://www.youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi)
+
+- Goodfellow et al. (2016). *Deep Learning*, Ch. 6–8. *(Free PDF)*  
+  *The definitive deep learning textbook chapters on feedforward networks, regularization, and optimization.*
+
+### Chapter 10 — Convolutional Neural Networks
+
+- LeCun, Y., Bottou, L., Bengio, Y., & Haffner, P. (1998). Gradient-based learning applied to document recognition. *Proceedings of the IEEE*, 86(11), 2278–2324.  
+  *Introduced LeNet-5 — the first successful CNN for digit recognition on MNIST.*
+
+- Krizhevsky, A., Sutskever, I., & Hinton, G.E. (2012). ImageNet classification with deep convolutional neural networks. *NeurIPS*, 1097–1105.  
+  *AlexNet — the paper that launched the modern deep learning era by winning ImageNet 2012.*
+
+- Simonyan, K. & Zisserman, A. (2015). Very deep convolutional networks for large-scale image recognition. *ICLR*. (VGGNet)  
+  *Showed that network depth using small 3×3 kernels is a critical component for accuracy.*
+
+- He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep residual learning for image recognition. *CVPR*, 770–778.  
+  *Introduced skip connections (ResNet) solving the vanishing gradient problem in very deep networks.*
+
+- Goodfellow et al. (2016). *Deep Learning*, Ch. 9: Convolutional Networks. *(Free PDF)*
+
+- **CS231n: Convolutional Neural Networks for Visual Recognition** (Stanford)  
+  *The best-structured CNN course. All notes, slides, and assignments free online.*  
+  → [cs231n.stanford.edu](http://cs231n.stanford.edu)
+
+### Chapter 11 — Recurrent Neural Networks & LSTM
+
+- Elman, J.L. (1990). Finding structure in time. *Cognitive Science*, 14(2), 179–211.  
+  *Introduced the basic Elman RNN architecture with recurrent hidden states.*
+
+- Hochreiter, S. & Schmidhuber, J. (1997). Long short-term memory. *Neural Computation*, 9(8), 1735–1780.  
+  *The LSTM paper — one of the most cited papers in all of machine learning.*
+
+- Hochreiter, S. (1991). *Untersuchungen zu dynamischen neuronalen Netzen* [Master's thesis, TU Munich].  
+  *Where the vanishing gradient problem was first formally analyzed.*
+
+- Cho, K., van Merrienboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H., & Bengio, Y. (2014). Learning phrase representations using RNN encoder-decoder for statistical machine translation. *EMNLP*, 1724–1734.  
+  *Introduced the GRU (Gated Recurrent Unit) as a simpler alternative to LSTM.*
+
+- Graves, A. (2012). *Supervised Sequence Labelling with Recurrent Neural Networks*. Springer.  
+  *Comprehensive treatment of sequence learning with RNNs.*
+
+- Karpathy, A. (2015). The unreasonable effectiveness of recurrent neural networks. *Blog post.*  
+  *Legendary blog post demonstrating character-level RNNs on Shakespeare, Linux kernel, LaTeX.*  
+  → [karpathy.github.io/2015/05/21/rnn-effectiveness](https://karpathy.github.io/2015/05/21/rnn-effectiveness/)
+
+### Chapter 14 — Reinforcement Learning
+
+- Sutton, R.S. & Barto, A.G. (2018). *Reinforcement Learning: An Introduction* (2nd ed.). MIT Press. *(Free PDF)*  
+  *The definitive RL textbook. Covers everything from bandits to TD learning to policy gradients.*  
+  → [incompleteideas.net/book/the-book-2nd.html](http://incompleteideas.net/book/the-book-2nd.html)
+
+- Watkins, C.J.C.H. & Dayan, P. (1992). Q-learning. *Machine Learning*, 8(3–4), 279–292.  
+  *The original Q-learning convergence proof paper.*
+
+- Bellman, R. (1957). *Dynamic Programming*. Princeton University Press.  
+  *Introduced the Bellman equation — the recursive optimality condition underlying all DP and RL.*
+
+- Mnih, V. et al. (2015). Human-level control through deep reinforcement learning. *Nature*, 518, 529–533.  
+  *The DQN paper from DeepMind — combined Q-learning with CNNs to play Atari games at human level.*
+
+- Silver, D. et al. (2016). Mastering the game of Go with deep neural networks and tree search. *Nature*, 529, 484–489.  
+  *AlphaGo — milestone paper combining deep RL with Monte Carlo Tree Search.*
+
+- **DeepMind x UCL Lectures on Reinforcement Learning** (YouTube, 2021)  
+  *12-lecture series by DeepMind researchers. Rigorous and modern.*  
+  → [youtube.com/playlist?list=PLqYmG7hTraZDVH599EItlEWsUOsJbAodm](https://www.youtube.com/playlist?list=PLqYmG7hTraZDVH599EItlEWsUOsJbAodm)
+
+---
+
+## 🟡 Unsupervised Learning Chapters
+
+### Chapter 12 — K-Means Clustering
+
+- MacQueen, J. (1967). Some methods for classification and analysis of multivariate observations. *5th Berkeley Symposium on Mathematical Statistics and Probability*, 1, 281–297.  
+  *The original K-Means paper.*
+
+- Arthur, D. & Vassilvitskii, S. (2007). k-means++: The advantages of careful seeding. *SODA*, 1027–1035.  
+  *Introduced K-Means++ initialization — guarantees O(log k) approximation to optimal solution.*
+
+- Lloyd, S.P. (1982). Least squares quantization in PCM. *IEEE Transactions on Information Theory*, 28(2), 129–137.  
+  *The "Lloyd's algorithm" paper — the standard iterative K-Means procedure.*
+
+- Rousseeuw, P.J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. *Journal of Computational and Applied Mathematics*, 20, 53–65.  
+  *Introduced the silhouette score for cluster quality evaluation.*
+
+- **StatQuest: K-means Clustering** (YouTube)  
+  → [youtu.be/4b5d3muPQmA](https://youtu.be/4b5d3muPQmA)
+
+### Chapter 13 — Principal Component Analysis
+
+- Pearson, K. (1901). On lines and planes of closest fit to systems of points in space. *Philosophical Magazine*, 2(11), 559–572.  
+  *The original PCA paper — over 120 years old.*
+
+- Hotelling, H. (1933). Analysis of a complex of statistical variables into principal components. *Journal of Educational Psychology*, 24(6), 417–441.  
+  *Re-derived PCA independently and gave it the modern "principal components" name.*
+
+- Jolliffe, I.T. (2002). *Principal Component Analysis* (2nd ed.). Springer.  
+  *The definitive monograph on PCA — covers every variant, application, and interpretation.*
+
+- Shlens, J. (2014). A tutorial on principal component analysis. *arXiv:1404.1100*.  
+  *Free, 12-page tutorial — very readable derivation from covariance matrices to eigenvectors.*  
+  → [arxiv.org/abs/1404.1100](https://arxiv.org/abs/1404.1100)
+
+- van der Maaten, L. & Hinton, G. (2008). Visualizing data using t-SNE. *JMLR*, 9, 2579–2605.  
+  *t-SNE — the most popular non-linear alternative to PCA for visualization.*
+
+---
+
+## 📊 Model Evaluation (Chapter 15)
+
+- Kohavi, R. (1995). A study of cross-validation and bootstrap for accuracy estimation and model selection. *IJCAI*, 1137–1143.  
+  *Comprehensive comparison of hold-out, k-fold CV, and bootstrap for model selection.*
+
+- Bradley, A.P. (1997). The use of the area under the ROC curve in the evaluation of machine learning algorithms. *Pattern Recognition*, 30(7), 1145–1159.  
+  *Why AUC-ROC is a robust evaluation metric for classifiers.*
+
+- Chawla, N.V., Bowyer, K.W., Hall, L.O., & Kegelmeyer, W.P. (2002). SMOTE: Synthetic minority over-sampling technique. *JAIR*, 16, 321–357.  
+  *Addresses class imbalance — highly relevant when accuracy is misleading.*
+
+- Tibshirani, R. (1996). Regression shrinkage and selection via the lasso. *JRSS-B*, 58(1), 267–288.  
+  *Introduced Lasso (L1) regularization — fundamental for sparse models and feature selection.*
+
+- Hoerl, A.E. & Kennard, R.W. (1970). Ridge regression: Biased estimation for nonorthogonal problems. *Technometrics*, 12(1), 55–67.  
+  *The original Ridge (L2) regularization paper.*
+
+- Bergstra, J. & Bengio, Y. (2012). Random search for hyper-parameter optimization. *JMLR*, 13, 281–305.  
+  *Shows random search is often as good or better than grid search for hyperparameter tuning.*
+
+---
+
+## 🌐 Free Online Courses
+
+| Course | Provider | Level | Topics |
+|--------|----------|-------|--------|
+| [Machine Learning Specialization](https://www.coursera.org/specializations/machine-learning-introduction) | Coursera / Andrew Ng | ★ Beginner | Supervised, unsupervised, RL |
+| [Deep Learning Specialization](https://www.coursera.org/specializations/deep-learning) | Coursera / Andrew Ng | ★★ Intermediate | NN, CNN, RNN, attention |
+| [CS229: Machine Learning](https://cs229.stanford.edu) | Stanford | ★★★ Advanced | Full ML theory |
+| [CS231n: CNNs for Visual Recognition](http://cs231n.stanford.edu) | Stanford | ★★★ Advanced | Computer vision |
+| [CS224n: NLP with Deep Learning](http://web.stanford.edu/class/cs224n) | Stanford | ★★★ Advanced | NLP, transformers |
+| [fast.ai Practical Deep Learning](https://course.fast.ai) | fast.ai | ★ Beginner | Top-down, code-first DL |
+| [Reinforcement Learning Lectures](https://www.davidsilver.uk/teaching/) | David Silver (DeepMind) | ★★★ Advanced | Full RL theory |
+| [Mathematics for ML](https://www.coursera.org/specializations/mathematics-machine-learning) | Coursera / Imperial | ★★ Intermediate | Linear algebra, calculus, PCA |
+
+---
+
+## 🛠️ Python Ecosystem
+
+### Standard Library (used in this tutorial)
+
+| Module | Key Functions Used | Purpose in ML |
+|--------|-------------------|---------------|
+| `math` | `sqrt`, `log`, `exp`, `tanh` | Activation functions, loss computation |
+| `random` | `random`, `gauss`, `shuffle`, `sample` | Initialization, stochastic gradient descent |
+| `collections` | `Counter`, `defaultdict` | Vote counting in trees, KNN |
+| `itertools` | `product` | Grid search over hyperparameters |
+
+### Scientific Python Stack (for extending this tutorial)
+
+| Library | Version | Role |
+|---------|---------|------|
+| [NumPy](https://numpy.org) | 1.26+ | Efficient array operations |
+| [pandas](https://pandas.pydata.org) | 2.0+ | Data loading and preprocessing |
+| [matplotlib](https://matplotlib.org) | 3.8+ | Visualization |
+| [scikit-learn](https://scikit-learn.org) | 1.4+ | Reference implementations to compare against |
+| [PyTorch](https://pytorch.org) | 2.0+ | Deep learning framework |
+| [Quarto](https://quarto.org) | 1.6+ | This website |
+
+---
+
+## 📰 Landmark Papers Timeline
+
+A chronological map of the key ideas in this tutorial:
+
+```
+1763  Bayes' theorem (Thomas Bayes)
+1901  PCA introduced (Karl Pearson)
+1957  Dynamic Programming / Bellman equation (Richard Bellman)
+1958  Perceptron (Frank Rosenblatt)
+1967  K-Means clustering (James MacQueen)
+1984  CART — Decision Trees (Breiman, Friedman et al.)
+1986  Backpropagation popularized (Rumelhart, Hinton, Williams)
+1992  Q-Learning convergence proof (Watkins & Dayan)
+1995  Support Vector Machines (Cortes & Vapnik)
+1996  Bagging (Leo Breiman)
+1997  AdaBoost (Freund & Schapire)
+1997  LSTM (Hochreiter & Schmidhuber)
+1998  LeNet-5 / Convolutional Networks (LeCun et al.)
+2001  Random Forests (Leo Breiman)
+2001  Gradient Boosting (Jerome Friedman)
+2006  Deep Belief Networks — deep learning revival (Hinton et al.)
+2012  AlexNet — deep learning breakthrough (Krizhevsky et al.)
+2014  GRU (Cho et al.) / GANs (Goodfellow et al.)
+2015  ResNet — skip connections (He et al.)
+2015  DQN — deep RL for Atari (Mnih et al.)
+2017  Transformers / Attention Is All You Need (Vaswani et al.)
+2018  BERT (Devlin et al.) / GPT (OpenAI)
+2020  GPT-3 (OpenAI)
+2022  ChatGPT / Instruction-tuned LLMs
+```
+
+---
+
+## 🔗 Useful Websites & Blogs
+
+| Resource | URL | Why It's Useful |
+|----------|-----|----------------|
+| **Distill.pub** | [distill.pub](https://distill.pub) | Interactive, beautifully explained ML articles |
+| **Towards Data Science** | [towardsdatascience.com](https://towardsdatascience.com) | Practical ML tutorials |
+| **Papers With Code** | [paperswithcode.com](https://paperswithcode.com) | State-of-the-art benchmarks + code |
+| **arXiv cs.LG** | [arxiv.org/list/cs.LG](https://arxiv.org/list/cs.LG) | Latest ML research preprints |
+| **StatQuest** | [statquest.org](https://statquest.org) | YouTube channel: best visual ML explanations |
+| **Andrej Karpathy's Blog** | [karpathy.github.io](https://karpathy.github.io) | Deep intuition from one of the field's best |
+| **Chris Olah's Blog** | [colah.github.io](https://colah.github.io) | Legendary posts on neural nets, LSTMs, attention |
+| **Lilian Weng's Blog** | [lilianweng.github.io](https://lilianweng.github.io) | Deep technical surveys on RL, NLP, diffusion models |
+
+---
+
+*Last updated: 2026-05-23*

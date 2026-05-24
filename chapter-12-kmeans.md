@@ -1,0 +1,267 @@
+# Chapter 12: K-Means Clustering
+
+> **Level**: Intermediate | **Estimated Time**: 3 hours
+
+---
+
+## 12.1 Intuition
+
+K-Means is the most widely used **unsupervised** clustering algorithm.
+
+**Goal**: partition n data points into K clusters such that each point belongs to the cluster with the nearest mean (centroid).
+
+No labels needed — the algorithm discovers structure on its own.
+
+---
+
+## 12.2 The Algorithm
+
+```
+1. Choose K (number of clusters)
+2. Initialize K centroids randomly
+3. Repeat until convergence:
+   a. Assignment step: assign each point to its nearest centroid
+   b. Update step: recompute each centroid as the mean of its assigned points
+```
+
+**Convergence**: assignments stop changing (or centroids move < ε).
+
+---
+
+## 12.3 Mathematical Objective
+
+K-Means minimizes the **Within-Cluster Sum of Squares (WCSS)**:
+
+```
+J = Σₖ Σᵢ∈Cₖ ||xᵢ - μₖ||²
+```
+
+Where μₖ is the centroid of cluster k.
+
+This is a **non-convex** optimization problem → results depend on initialization.
+
+---
+
+## 12.4 From-Scratch Python Implementation
+
+```python
+# kmeans.py
+import math, random
+
+def euclidean(a, b):
+    return math.sqrt(sum((ai-bi)**2 for ai,bi in zip(a,b)))
+
+class KMeans:
+    """
+    K-Means Clustering with K-Means++ initialization.
+    Pure Python — no ML libraries.
+    """
+
+    def __init__(self, k=3, max_iter=300, tol=1e-4, n_init=10, seed=42):
+        self.k = k
+        self.max_iter = max_iter
+        self.tol = tol
+        self.n_init = n_init
+        self.seed = seed
+        self.centroids = None
+        self.labels = None
+        self.inertia = None
+
+    def _init_centroids_plus_plus(self, X):
+        """K-Means++ initialization for better starting centroids."""
+        random.seed(self.seed)
+        centroids = [random.choice(X)[:]]
+
+        for _ in range(self.k - 1):
+            # Compute squared distances to nearest centroid
+            distances = [
+                min(euclidean(x, c)**2 for c in centroids)
+                for x in X
+            ]
+            total = sum(distances)
+            # Sample proportional to distance squared
+            r = random.random() * total
+            cumulative = 0.0
+            for i, d in enumerate(distances):
+                cumulative += d
+                if cumulative >= r:
+                    centroids.append(X[i][:])
+                    break
+
+        return centroids
+
+    def _assign(self, X, centroids):
+        """Assign each point to its nearest centroid."""
+        return [
+            min(range(self.k), key=lambda c: euclidean(x, centroids[c]))
+            for x in X
+        ]
+
+    def _update_centroids(self, X, labels):
+        """Recompute centroids as mean of assigned points."""
+        n_features = len(X[0])
+        new_centroids = []
+        for k in range(self.k):
+            cluster = [X[i] for i in range(len(X)) if labels[i] == k]
+            if cluster:
+                centroid = [sum(pt[j] for pt in cluster)/len(cluster)
+                            for j in range(n_features)]
+            else:
+                centroid = random.choice(X)[:]  # reinitialize empty cluster
+            new_centroids.append(centroid)
+        return new_centroids
+
+    def _compute_inertia(self, X, labels, centroids):
+        return sum(euclidean(X[i], centroids[labels[i]])**2 for i in range(len(X)))
+
+    def _fit_once(self, X):
+        centroids = self._init_centroids_plus_plus(X)
+
+        for _ in range(self.max_iter):
+            labels = self._assign(X, centroids)
+            new_centroids = self._update_centroids(X, labels)
+
+            # Check convergence
+            shift = max(euclidean(centroids[k], new_centroids[k]) for k in range(self.k))
+            centroids = new_centroids
+            if shift < self.tol:
+                break
+
+        labels = self._assign(X, centroids)
+        inertia = self._compute_inertia(X, labels, centroids)
+        return centroids, labels, inertia
+
+    def fit(self, X):
+        """Run n_init times, keep best result (lowest inertia)."""
+        best_inertia = math.inf
+        for run in range(self.n_init):
+            self.seed = self.seed + run
+            centroids, labels, inertia = self._fit_once(X)
+            if inertia < best_inertia:
+                best_inertia = inertia
+                self.centroids = centroids
+                self.labels = labels
+                self.inertia = inertia
+        return self
+
+    def predict(self, X):
+        return self._assign(X, self.centroids)
+
+    def fit_predict(self, X):
+        return self.fit(X).labels
+
+
+# ── Elbow Method ──────────────────────────────────────────────────────────
+
+def elbow_method(X, k_range=range(1, 11)):
+    """Compute inertia for each K to find the 'elbow'."""
+    inertias = {}
+    for k in k_range:
+        km = KMeans(k=k, n_init=5)
+        km.fit(X)
+        inertias[k] = km.inertia
+        print(f"  K={k:2d}  Inertia={km.inertia:.2f}")
+    return inertias
+
+
+# ── Silhouette Score ──────────────────────────────────────────────────────
+
+def silhouette_score(X, labels):
+    """
+    Silhouette score: measures how well-separated clusters are.
+    Range: [-1, 1], higher is better.
+    """
+    n = len(X)
+    scores = []
+    k_set = set(labels)
+
+    for i in range(n):
+        # a(i): mean distance to points in same cluster
+        same = [X[j] for j in range(n) if labels[j] == labels[i] and j != i]
+        a = sum(euclidean(X[i], xj) for xj in same) / max(len(same), 1)
+
+        # b(i): minimum mean distance to other clusters
+        b = math.inf
+        for k in k_set:
+            if k == labels[i]: continue
+            other = [X[j] for j in range(n) if labels[j] == k]
+            if other:
+                mean_dist = sum(euclidean(X[i], xj) for xj in other) / len(other)
+                b = min(b, mean_dist)
+
+        if b == math.inf: b = 0
+        scores.append((b - a) / max(a, b) if max(a, b) > 0 else 0)
+
+    return sum(scores) / n
+
+
+# ── Demo ──────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    random.seed(0)
+
+    # Generate 3 Gaussian clusters
+    def gaussian_cluster(cx, cy, n=20, spread=0.5):
+        return [[random.gauss(cx, spread), random.gauss(cy, spread)] for _ in range(n)]
+
+    X = (gaussian_cluster(0, 0) +
+         gaussian_cluster(5, 0) +
+         gaussian_cluster(2.5, 4))
+    true_labels = [0]*20 + [1]*20 + [2]*20
+
+    km = KMeans(k=3, n_init=5)
+    labels = km.fit_predict(X)
+
+    print(f"K-Means Clustering Results:")
+    print(f"  Inertia: {km.inertia:.2f}")
+    print(f"  Silhouette Score: {silhouette_score(X, labels):.3f}")
+    print(f"\n  Centroids:")
+    for i, c in enumerate(km.centroids):
+        print(f"    Cluster {i}: ({c[0]:.2f}, {c[1]:.2f})")
+
+    print("\nElbow Method:")
+    elbow_method(X, range(1, 7))
+```
+
+---
+
+## 12.5 Choosing K
+
+| Method | Approach |
+|--------|---------|
+| **Elbow method** | Plot inertia vs K; choose the "elbow" |
+| **Silhouette score** | Maximize silhouette score |
+| **Domain knowledge** | You know the expected number of groups |
+| **Gap statistic** | Compare WCSS to random baseline |
+
+---
+
+## 12.6 Limitations of K-Means
+
+- Assumes **spherical, similarly-sized clusters** (Euclidean distance)
+- Sensitive to **outliers** and **initialization** (use K-Means++)
+- Must specify K in advance
+- Fails on non-convex shapes → use DBSCAN or Gaussian Mixture Models instead
+
+---
+
+## ✅ Chapter Summary
+
+| Step | Math |
+|------|------|
+| Objective | Minimize `Σₖ Σᵢ∈Cₖ ||xᵢ - μₖ||²` |
+| Assignment | Each point → nearest centroid |
+| Update | Centroid = mean of assigned points |
+| K selection | Elbow method or silhouette score |
+
+---
+
+## 📝 Exercises
+
+1. Prove that K-Means always converges (hint: inertia is non-increasing).
+2. Implement **K-Medoids** where centroids must be actual data points.
+3. What happens if two centroids collapse to the same point? How does K-Means++ prevent this?
+
+---
+
+**← Previous:** [Chapter 11: RNNs](chapter-11-rnn.md)  
+**→ Next:** [Chapter 13: PCA](chapter-13-pca.md)

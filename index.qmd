@@ -1,0 +1,241 @@
+---
+title: "Machine Learning in Python"
+subtitle: "From Beginner to Advanced — All Algorithms Implemented From Scratch"
+page-layout: full
+toc: false
+---
+
+::: {.hero-banner}
+# 🐍 Machine Learning in Python
+
+**A comprehensive tutorial series covering theory, mathematics, and pure-Python implementation of every major ML algorithm — no scikit-learn, no TensorFlow.**
+
+::: {.badge-row}
+[🟢 Beginner]{.badge-beginner} [🟡 Intermediate]{.badge-intermediate} [🔴 Advanced]{.badge-advanced} [16 Chapters]{.badge-all} [Pure Python]{.badge-all}
+:::
+:::
+
+## What You'll Learn
+
+This tutorial takes you from the mathematical foundations of machine learning all the way through deep learning and reinforcement learning, with **every algorithm coded from scratch in plain Python** (no NumPy for core algorithms, no ML libraries).
+
+Each chapter follows a consistent structure:
+
+1. **Intuition** — Plain-English motivation
+2. **Theory** — Mathematical formulation with notation explained
+3. **Algorithm** — Step-by-step pseudocode
+4. **From-Scratch Python** — Complete, runnable implementation
+5. **Exercises** — Practice problems
+
+---
+
+## 🟢 Beginner Path
+
+::: {.chapter-grid}
+
+::: {.chapter-card}
+[Chapter 00]{.card-number}
+[Prerequisites & Setup]{.card-title}
+[Python math utilities, vector/matrix operations, data normalization — the toolkit we use in every chapter.]{.card-desc}
+::: {.card-footer}
+[🟢 Beginner]{.badge-beginner} · 2–3 hrs
+:::
+[→ Start Here](chapters/chapter-00-prerequisites.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 01]{.card-number}
+[Introduction to Machine Learning]{.card-title}
+[Types of ML, the learning workflow, key terminology, bias-variance tradeoff, and your first baseline model.]{.card-desc}
+::: {.card-footer}
+[🟢 Beginner]{.badge-beginner} · 1–2 hrs
+:::
+[→ Read Chapter](chapters/chapter-01-intro-to-ml.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 02]{.card-number}
+[Linear Regression]{.card-title}
+[Ordinary least squares, gradient descent, MSE cost function, R² evaluation. The foundation of supervised learning.]{.card-desc}
+::: {.card-footer}
+[🟢 Beginner]{.badge-beginner} · 3–4 hrs
+:::
+[→ Read Chapter](chapters/chapter-02-linear-regression.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 03]{.card-number}
+[Logistic Regression]{.card-title}
+[Sigmoid function, binary cross-entropy loss, gradient descent for classification. One-vs-rest multiclass extension.]{.card-desc}
+::: {.card-footer}
+[🟢 Beginner]{.badge-beginner} · 3–4 hrs
+:::
+[→ Read Chapter](chapters/chapter-03-logistic-regression.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 04]{.card-number}
+[K-Nearest Neighbors]{.card-title}
+[Distance metrics, lazy learning, KNN for classification and regression, curse of dimensionality.]{.card-desc}
+::: {.card-footer}
+[🟢 Beginner]{.badge-beginner} · 2–3 hrs
+:::
+[→ Read Chapter](chapters/chapter-04-knn.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 05]{.card-number}
+[Naive Bayes]{.card-title}
+[Bayes' theorem, Gaussian NB for continuous data, Multinomial NB for text, Laplace smoothing, spam detection.]{.card-desc}
+::: {.card-footer}
+[🟢 Beginner]{.badge-beginner} · 3 hrs
+:::
+[→ Read Chapter](chapters/chapter-05-naive-bayes.qmd)
+:::
+
+:::
+
+---
+
+## 🟡 Intermediate Path
+
+::: {.chapter-grid}
+
+::: {.chapter-card}
+[Chapter 06]{.card-number}
+[Decision Trees]{.card-title}
+[Entropy, Gini impurity, information gain, CART algorithm for classification and regression.]{.card-desc}
+::: {.card-footer}
+[🟡 Intermediate]{.badge-intermediate} · 4–5 hrs
+:::
+[→ Read Chapter](chapters/chapter-06-decision-trees.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 07]{.card-number}
+[Support Vector Machines]{.card-title}
+[Maximum margin hyperplane, soft-margin SVM, hinge loss, kernel trick (RBF, polynomial).]{.card-desc}
+::: {.card-footer}
+[🟡 Intermediate]{.badge-intermediate} · 4–5 hrs
+:::
+[→ Read Chapter](chapters/chapter-07-svm.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 08]{.card-number}
+[Ensemble Methods]{.card-title}
+[Bagging, Random Forest, AdaBoost — combining weak learners into a powerful ensemble.]{.card-desc}
+::: {.card-footer}
+[🟡 Intermediate]{.badge-intermediate} · 4–5 hrs
+:::
+[→ Read Chapter](chapters/chapter-08-ensemble-methods.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 12]{.card-number}
+[K-Means Clustering]{.card-title}
+[Unsupervised clustering, K-Means++ initialization, elbow method, silhouette score.]{.card-desc}
+::: {.card-footer}
+[🟡 Intermediate]{.badge-intermediate} · 3 hrs
+:::
+[→ Read Chapter](chapters/chapter-12-kmeans.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 13]{.card-number}
+[Principal Component Analysis]{.card-title}
+[Covariance matrix, eigendecomposition via power iteration, dimensionality reduction, explained variance.]{.card-desc}
+::: {.card-footer}
+[🟡 Intermediate]{.badge-intermediate} · 4–5 hrs
+:::
+[→ Read Chapter](chapters/chapter-13-pca.qmd)
+:::
+
+:::
+
+---
+
+## 🔴 Advanced Path
+
+::: {.chapter-grid}
+
+::: {.chapter-card}
+[Chapter 09]{.card-number}
+[Neural Networks (MLP)]{.card-title}
+[Perceptrons, forward pass, backpropagation, activation functions, He initialization, XOR problem.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 6–8 hrs
+:::
+[→ Read Chapter](chapters/chapter-09-neural-networks.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 10]{.card-number}
+[Convolutional Neural Networks]{.card-title}
+[2D convolution, padding, stride, max pooling, feature maps, Sobel edge detection from scratch.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 6–8 hrs
+:::
+[→ Read Chapter](chapters/chapter-10-cnn.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 11]{.card-number}
+[Recurrent Neural Networks]{.card-title}
+[Vanilla RNN, vanishing gradient problem, LSTM gates (forget/input/output/cell), GRU architecture.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 6–8 hrs
+:::
+[→ Read Chapter](chapters/chapter-11-rnn.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 14]{.card-number}
+[Reinforcement Learning]{.card-title}
+[Markov decision processes, Q-learning, Bellman equation, ε-greedy policy, GridWorld agent.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 5–6 hrs
+:::
+[→ Read Chapter](chapters/chapter-14-reinforcement-learning.qmd)
+:::
+
+:::
+
+---
+
+## 📊 Best Practices
+
+::: {.chapter-grid}
+
+::: {.chapter-card}
+[Chapter 15]{.card-number}
+[Model Evaluation & Best Practices]{.card-title}
+[Cross-validation, confusion matrix, ROC-AUC, regression metrics, overfitting/regularization, learning curves.]{.card-desc}
+::: {.card-footer}
+[🔵 All Levels]{.badge-all} · 3–4 hrs
+:::
+[→ Read Chapter](chapters/chapter-15-model-evaluation.qmd)
+:::
+
+:::
+
+---
+
+## 🛠️ Philosophy
+
+> "The best way to understand an algorithm is to implement it from scratch."
+
+This tutorial uses **only Python's standard library** for all core algorithm implementations.  
+No `sklearn`, no `torch`, no `tensorflow` — just pure Python logic and `math`.
+
+This forces you to truly understand what each algorithm is doing, not just call `.fit()`.
+
+---
+
+## 🗺️ Suggested Learning Paths
+
+| Path | Chapters | Who it's for |
+|------|----------|-------------|
+| 🟢 **Beginner** | 00 → 01 → 02 → 03 → 04 → 05 → 15 | New to ML |
+| 🟡 **Intermediate** | 00–05 → 06 → 07 → 08 → 12 → 13 → 15 | Comfortable with Python |
+| 🔴 **Full Course** | 00 → 15 in order | Complete mastery |
