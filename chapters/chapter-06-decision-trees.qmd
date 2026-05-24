@@ -1,0 +1,374 @@
+---
+title: "Chapter 06: Decision Trees"
+subtitle: "Information gain, entropy, Gini impurity, and tree splitting"
+date: last-modified
+categories: [intermediate, classification, regression, tree-models]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+---
+
+# Chapter 06: Decision Trees
+
+> **Level**: Intermediate | **Estimated Time**: 4–5 hours
+
+---
+
+## 6.1 Intuition
+
+A decision tree is a flowchart-like structure where:
+- **Internal nodes** test a feature (e.g., "Is age > 30?")
+- **Branches** represent outcomes (yes/no)
+- **Leaf nodes** hold predictions (class label or value)
+
+Trees are highly interpretable — you can literally read the rules they learn.
+
+---
+
+## 6.2 Key Concepts: Impurity Measures
+
+To build a tree, at each node we ask: *which feature and threshold best splits the data?*
+
+We measure split quality by **impurity** — how mixed the classes are.
+
+### Entropy (Information Theory)
+```
+H(S) = -Σ_c p_c · log₂(p_c)
+```
+- H = 0: perfectly pure (all one class)
+- H = 1: maximally impure (50/50 split for binary)
+
+### Gini Impurity (used in CART)
+```
+Gini(S) = 1 - Σ_c p_c²
+```
+- Gini = 0: pure
+- Gini = 0.5: maximally impure (binary case)
+
+### Information Gain
+```
+IG(S, feature) = H(S) - Σ_split (|S_split|/|S|) · H(S_split)
+```
+We choose the feature/threshold that **maximizes information gain**.
+
+---
+
+## 6.3 The CART Algorithm
+
+**C**lassification **A**nd **R**egression **T**rees:
+
+```
+function BuildTree(X, y, depth):
+    if stopping_condition_met:
+        return Leaf(majority_class(y))
+    
+    best_feature, best_threshold = find_best_split(X, y)
+    left_X, left_y   = samples where x[feature] ≤ threshold
+    right_X, right_y = samples where x[feature] >  threshold
+    
+    return Node(
+        feature    = best_feature,
+        threshold  = best_threshold,
+        left       = BuildTree(left_X, left_y, depth+1),
+        right      = BuildTree(right_X, right_y, depth+1)
+    )
+```
+
+**Stopping conditions:**
+- Maximum depth reached
+- Minimum samples to split (< min_samples_split)
+- Node is already pure
+
+---
+
+## 6.4 From-Scratch Python Implementation
+
+```{python}
+# decision_tree.py
+import math
+from collections import Counter
+
+# ── Impurity functions ─────────────────────────────────────────────────────
+
+def gini(y):
+    """Gini impurity of label list y."""
+    n = len(y)
+    if n == 0:
+        return 0.0
+    counts = Counter(y)
+    return 1.0 - sum((c / n) ** 2 for c in counts.values())
+
+def entropy(y):
+    """Shannon entropy of label list y."""
+    n = len(y)
+    if n == 0:
+        return 0.0
+    counts = Counter(y)
+    result = 0.0
+    for c in counts.values():
+        p = c / n
+        if p > 0:
+            result -= p * math.log2(p)
+    return result
+
+def information_gain(y, y_left, y_right, criterion='gini'):
+    """Information gain from splitting y into y_left and y_right."""
+    impurity_fn = gini if criterion == 'gini' else entropy
+    n, n_l, n_r = len(y), len(y_left), len(y_right)
+    return impurity_fn(y) - (n_l / n) * impurity_fn(y_left) - (n_r / n) * impurity_fn(y_right)
+
+
+# ── Tree node ──────────────────────────────────────────────────────────────
+
+class Node:
+    """A node in the decision tree."""
+    def __init__(self):
+        self.feature_idx = None
+        self.threshold = None
+        self.left = None
+        self.right = None
+        self.is_leaf = False
+        self.prediction = None
+        self.impurity = 0.0
+        self.n_samples = 0
+
+
+# ── Decision Tree Classifier ──────────────────────────────────────────────
+
+class DecisionTreeClassifier:
+    """
+    CART Decision Tree for classification.
+    Supports Gini and Entropy criteria.
+    Pure Python — no ML libraries.
+    """
+
+    def __init__(self, max_depth=None, min_samples_split=2,
+                 min_samples_leaf=1, criterion='gini'):
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.criterion = criterion
+        self.root = None
+        self.n_features = None
+
+    def _best_split(self, X, y):
+        """Find the best (feature, threshold) split."""
+        best_gain = -math.inf
+        best_feature = None
+        best_threshold = None
+
+        n_features = len(X[0])
+
+        for feature_idx in range(n_features):
+            # Get unique thresholds: midpoints between consecutive sorted values
+            values = sorted(set(row[feature_idx] for row in X))
+            thresholds = [(values[i] + values[i+1]) / 2 for i in range(len(values) - 1)]
+
+            for threshold in thresholds:
+                y_left  = [y[i] for i in range(len(X)) if X[i][feature_idx] <= threshold]
+                y_right = [y[i] for i in range(len(X)) if X[i][feature_idx] >  threshold]
+
+                if len(y_left) < self.min_samples_leaf or len(y_right) < self.min_samples_leaf:
+                    continue
+
+                gain = information_gain(y, y_left, y_right, self.criterion)
+                if gain > best_gain:
+                    best_gain = gain
+                    best_feature = feature_idx
+                    best_threshold = threshold
+
+        return best_feature, best_threshold, best_gain
+
+    def _build_tree(self, X, y, depth):
+        node = Node()
+        node.n_samples = len(y)
+        node.prediction = Counter(y).most_common(1)[0][0]
+
+        # Stopping conditions
+        if (len(set(y)) == 1 or
+                len(y) < self.min_samples_split or
+                (self.max_depth is not None and depth >= self.max_depth)):
+            node.is_leaf = True
+            return node
+
+        feature_idx, threshold, gain = self._best_split(X, y)
+
+        if feature_idx is None or gain <= 0:
+            node.is_leaf = True
+            return node
+
+        # Split data
+        left_idx  = [i for i in range(len(X)) if X[i][feature_idx] <= threshold]
+        right_idx = [i for i in range(len(X)) if X[i][feature_idx] >  threshold]
+
+        node.feature_idx = feature_idx
+        node.threshold = threshold
+        node.left  = self._build_tree([X[i] for i in left_idx],  [y[i] for i in left_idx],  depth + 1)
+        node.right = self._build_tree([X[i] for i in right_idx], [y[i] for i in right_idx], depth + 1)
+
+        return node
+
+    def fit(self, X, y):
+        self.n_features = len(X[0])
+        self.root = self._build_tree(X, y, depth=0)
+        return self
+
+    def _traverse(self, x, node):
+        if node.is_leaf:
+            return node.prediction
+        if x[node.feature_idx] <= node.threshold:
+            return self._traverse(x, node.left)
+        else:
+            return self._traverse(x, node.right)
+
+    def predict(self, X):
+        return [self._traverse(xi, self.root) for xi in X]
+
+    def print_tree(self, node=None, depth=0, feature_names=None):
+        """Pretty-print the tree structure."""
+        if node is None:
+            node = self.root
+        indent = "    " * depth
+        if node.is_leaf:
+            print(f"{indent}→ Predict: {node.prediction}  (n={node.n_samples})")
+        else:
+            fname = (feature_names[node.feature_idx]
+                     if feature_names else f"x[{node.feature_idx}]")
+            print(f"{indent}If {fname} ≤ {node.threshold:.3f}:")
+            self.print_tree(node.left, depth + 1, feature_names)
+            print(f"{indent}Else:")
+            self.print_tree(node.right, depth + 1, feature_names)
+
+
+# ── Decision Tree Regressor ────────────────────────────────────────────────
+
+def mse_impurity(y):
+    if not y:
+        return 0.0
+    m = sum(y) / len(y)
+    return sum((yi - m)**2 for yi in y) / len(y)
+
+class DecisionTreeRegressor:
+    """CART Decision Tree for regression (minimizes MSE at each split)."""
+
+    def __init__(self, max_depth=None, min_samples_split=2, min_samples_leaf=1):
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.root = None
+
+    def _best_split(self, X, y):
+        best_reduction = -math.inf
+        best_feature = best_threshold = None
+        parent_mse = mse_impurity(y)
+        n = len(y)
+
+        for feat in range(len(X[0])):
+            values = sorted(set(row[feat] for row in X))
+            thresholds = [(values[i]+values[i+1])/2 for i in range(len(values)-1)]
+            for thr in thresholds:
+                yl = [y[i] for i in range(n) if X[i][feat] <= thr]
+                yr = [y[i] for i in range(n) if X[i][feat] > thr]
+                if len(yl) < self.min_samples_leaf or len(yr) < self.min_samples_leaf:
+                    continue
+                reduction = parent_mse - (len(yl)/n)*mse_impurity(yl) - (len(yr)/n)*mse_impurity(yr)
+                if reduction > best_reduction:
+                    best_reduction, best_feature, best_threshold = reduction, feat, thr
+        return best_feature, best_threshold
+
+    def _build(self, X, y, depth):
+        node = Node()
+        node.n_samples = len(y)
+        node.prediction = sum(y) / len(y)
+        if len(y) < self.min_samples_split or (self.max_depth and depth >= self.max_depth):
+            node.is_leaf = True
+            return node
+        feat, thr = self._best_split(X, y)
+        if feat is None:
+            node.is_leaf = True
+            return node
+        li = [i for i in range(len(X)) if X[i][feat] <= thr]
+        ri = [i for i in range(len(X)) if X[i][feat] > thr]
+        node.feature_idx, node.threshold = feat, thr
+        node.left  = self._build([X[i] for i in li], [y[i] for i in li], depth+1)
+        node.right = self._build([X[i] for i in ri], [y[i] for i in ri], depth+1)
+        return node
+
+    def fit(self, X, y):
+        self.root = self._build(X, y, 0)
+        return self
+
+    def _traverse(self, x, node):
+        if node.is_leaf:
+            return node.prediction
+        return self._traverse(x, node.left if x[node.feature_idx] <= node.threshold else node.right)
+
+    def predict(self, X):
+        return [self._traverse(xi, self.root) for xi in X]
+
+
+# ── Demo ───────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # XOR problem — impossible for linear models, easy for trees
+    X_train = [[0,0],[0,1],[1,0],[1,1],[0,0],[0,1],[1,0],[1,1]]
+    y_train = [  0,    1,    1,    0,    0,    1,    1,    0  ]
+
+    tree = DecisionTreeClassifier(max_depth=3, criterion='gini')
+    tree.fit(X_train, y_train)
+
+    print("Decision Tree Structure:")
+    tree.print_tree(feature_names=['x₁', 'x₂'])
+
+    preds = tree.predict([[0,0],[0,1],[1,0],[1,1]])
+    print("\nXOR Predictions:", preds)  # [0, 1, 1, 0]
+
+    # Regression
+    X_reg = [[i/10] for i in range(10)]
+    y_reg = [x[0]**2 for x in X_reg]
+    reg_tree = DecisionTreeRegressor(max_depth=4)
+    reg_tree.fit(X_reg, y_reg)
+    print("\nRegression (x²):")
+    for xi in [[0.25], [0.5], [0.75]]:
+        print(f"  f({xi[0]}) = {reg_tree.predict([xi])[0]:.3f}  (true: {xi[0]**2:.3f})")
+```
+
+---
+
+## 6.5 Overfitting and Pruning
+
+Decision trees easily overfit (especially deep ones). Control this with:
+
+| Hyperparameter | Effect |
+|---------------|--------|
+| `max_depth` | Hard limit on tree depth |
+| `min_samples_split` | Minimum samples to split a node |
+| `min_samples_leaf` | Minimum samples in a leaf |
+| **Post-pruning** | Build full tree, then remove branches that don't improve validation accuracy |
+
+---
+
+## ✅ Chapter Summary
+
+| Concept | Formula/Rule |
+|---------|-------------|
+| Gini impurity | `1 - Σ pᶜ²` |
+| Entropy | `-Σ pᶜ log₂ pᶜ` |
+| Information gain | `H(parent) - weighted avg H(children)` |
+| Splitting rule | Choose feature/threshold maximizing IG |
+| Stopping | Max depth, min samples, pure node |
+
+---
+
+## 📝 Exercises
+
+1. Draw a decision tree by hand for a simple AND/OR gate.
+2. Prove that Gini = 0 when a node is pure.
+3. Implement **cost-complexity pruning** (reduce tree size using a complexity parameter α).
+4. Visualize information gain vs threshold for a single feature split.
+
+---
+
+**← Previous:** [Chapter 05: Naive Bayes](chapter-05-naive-bayes.qmd)  
+**→ Next:** [Chapter 07: Support Vector Machines](chapter-07-svm.qmd)

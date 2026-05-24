@@ -1,6 +1,11 @@
 project:
   type: website
   output-dir: _site
+  render:
+    - "index.qmd"
+    - "about.qmd"
+    - "references.qmd"
+    - "chapters/*.qmd"
 
 website:
   title: "Machine Learning in Python"

@@ -1,0 +1,283 @@
+---
+title: "Chapter 03: Logistic Regression"
+subtitle: "Binary classification, sigmoid function, and log-loss"
+date: last-modified
+categories: [beginner, classification, sigmoid]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+---
+
+# Chapter 03: Logistic Regression
+
+> **Level**: Beginner | **Estimated Time**: 3–4 hours
+
+---
+
+## 3.1 Intuition
+
+Despite the name, **Logistic Regression is a classification algorithm**, not regression.
+
+**Problem**: Predict whether an email is spam (1) or not spam (0).
+
+Linear regression would give unbounded predictions (e.g., 2.7, -0.3) — meaningless for probabilities.  
+We need output in [0, 1]. The **sigmoid function** does exactly this.
+
+---
+
+## 3.2 The Sigmoid Function
+
+The sigmoid maps any real number to (0, 1):
+
+```
+σ(z) = 1 / (1 + e⁻ᶻ)
+```
+
+Properties:
+- σ(0) = 0.5
+- As z → +∞: σ(z) → 1
+- As z → -∞: σ(z) → 0
+- Derivative: σ'(z) = σ(z)(1 − σ(z))  ← very useful for backprop!
+
+---
+
+## 3.3 Mathematical Formulation
+
+### The Model
+```
+z = wᵀx = w₀ + w₁x₁ + ... + wₚxₚ
+ŷ = P(y=1 | x) = σ(z) = 1 / (1 + e⁻ᶻ)
+```
+
+### Decision Rule
+```
+Predict class 1 if ŷ ≥ 0.5  (i.e., z ≥ 0)
+Predict class 0 if ŷ < 0.5  (i.e., z < 0)
+```
+
+### Binary Cross-Entropy Loss (Log Loss)
+
+We can NOT use MSE here (it creates a non-convex surface with many local minima).  
+Instead we use **Binary Cross-Entropy**, derived from Maximum Likelihood Estimation:
+
+```
+J(w) = -(1/n) Σᵢ [ yᵢ log(ŷᵢ) + (1-yᵢ) log(1-ŷᵢ) ]
+```
+
+**Intuition**:
+- When y=1: loss = -log(ŷ) → penalizes predictions close to 0 heavily
+- When y=0: loss = -log(1-ŷ) → penalizes predictions close to 1 heavily
+
+### Gradient for Gradient Descent
+
+The partial derivative (surprisingly clean!):
+```
+∂J/∂wⱼ = (1/n) Σᵢ (ŷᵢ - yᵢ) xᵢⱼ
+```
+
+This is the **same form as linear regression** — only the prediction function differs.
+
+---
+
+## 3.4 From-Scratch Python Implementation
+
+```{python}
+# logistic_regression.py
+import math
+
+class LogisticRegression:
+    """
+    Binary Logistic Regression using Gradient Descent.
+    Pure Python — no ML libraries.
+    """
+
+    def __init__(self, learning_rate=0.1, n_iterations=1000):
+        self.lr = learning_rate
+        self.n_iterations = n_iterations
+        self.weights = None
+        self.cost_history = []
+
+    @staticmethod
+    def _sigmoid(z):
+        # Clip to prevent overflow in exp
+        z = max(-500, min(500, z))
+        return 1.0 / (1.0 + math.exp(-z))
+
+    def _add_bias(self, X):
+        return [[1.0] + list(row) for row in X]
+
+    def _linear(self, x_b):
+        return sum(wi * xi for wi, xi in zip(self.weights, x_b))
+
+    def _compute_cost(self, X_b, y):
+        n = len(y)
+        total = 0.0
+        for xi, yi in zip(X_b, y):
+            p = self._sigmoid(self._linear(xi))
+            p = max(1e-15, min(1 - 1e-15, p))   # numerical stability
+            total += yi * math.log(p) + (1 - yi) * math.log(1 - p)
+        return -total / n
+
+    def fit(self, X, y):
+        """Train with gradient descent."""
+        X_b = self._add_bias(X)
+        n, p = len(y), len(X_b[0])
+        self.weights = [0.0] * p
+
+        for iteration in range(self.n_iterations):
+            gradients = [0.0] * p
+            for xi, yi in zip(X_b, y):
+                y_hat = self._sigmoid(self._linear(xi))
+                error = y_hat - yi
+                for j in range(p):
+                    gradients[j] += error * xi[j]
+
+            for j in range(p):
+                self.weights[j] -= self.lr * gradients[j] / n
+
+            if iteration % 100 == 0:
+                self.cost_history.append(self._compute_cost(X_b, y))
+
+        return self
+
+    def predict_proba(self, X):
+        """Return probability of class 1 for each sample."""
+        X_b = self._add_bias(X)
+        return [self._sigmoid(self._linear(xi)) for xi in X_b]
+
+    def predict(self, X, threshold=0.5):
+        """Return binary class predictions."""
+        return [1 if p >= threshold else 0 for p in self.predict_proba(X)]
+
+
+# ── Metrics ────────────────────────────────────────────────────────────────
+
+def accuracy(y_true, y_pred):
+    return sum(yt == yp for yt, yp in zip(y_true, y_pred)) / len(y_true)
+
+def confusion_matrix(y_true, y_pred):
+    """Returns [[TN, FP], [FN, TP]]"""
+    TP = sum(yt == 1 and yp == 1 for yt, yp in zip(y_true, y_pred))
+    TN = sum(yt == 0 and yp == 0 for yt, yp in zip(y_true, y_pred))
+    FP = sum(yt == 0 and yp == 1 for yt, yp in zip(y_true, y_pred))
+    FN = sum(yt == 1 and yp == 0 for yt, yp in zip(y_true, y_pred))
+    return [[TN, FP], [FN, TP]]
+
+def precision_recall_f1(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    TN, FP, FN, TP = cm[0][0], cm[0][1], cm[1][0], cm[1][1]
+    precision = TP / (TP + FP + 1e-15)
+    recall    = TP / (TP + FN + 1e-15)
+    f1        = 2 * precision * recall / (precision + recall + 1e-15)
+    return precision, recall, f1
+
+
+# ── Demo ───────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # Dataset: [hours studied, previous score] → pass (1) or fail (0)
+    X_train = [
+        [2.0, 55], [3.5, 60], [5.0, 70], [6.5, 80], [8.0, 90],
+        [1.0, 45], [2.5, 50], [4.0, 65], [7.0, 85], [9.0, 95],
+        [1.5, 40], [3.0, 58], [5.5, 72], [7.5, 88], [8.5, 92],
+    ]
+    y_train = [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1]
+
+    X_test  = [[3.0, 62], [6.0, 75], [1.5, 48]]
+    y_test  = [0,          1,          0]
+
+    # Normalize features
+    def normalize(X, mean_=None, std_=None):
+        if mean_ is None:
+            n_feat = len(X[0])
+            mean_ = [sum(row[j] for row in X)/len(X) for j in range(n_feat)]
+            std_  = [
+                (sum((row[j]-mean_[j])**2 for row in X)/len(X))**0.5
+                for j in range(n_feat)
+            ]
+        return [[(x - m) / (s + 1e-8) for x, m, s in zip(row, mean_, std_)]
+                for row in X], mean_, std_
+
+    X_train_n, mu, sigma = normalize(X_train)
+    X_test_n, _, _       = normalize(X_test, mu, sigma)
+
+    model = LogisticRegression(learning_rate=0.5, n_iterations=1000)
+    model.fit(X_train_n, y_train)
+
+    probs = model.predict_proba(X_test_n)
+    preds = model.predict(X_test_n)
+
+    print("Test Results:")
+    for i, (p, pred, yt) in enumerate(zip(probs, preds, y_test)):
+        status = "✓" if pred == yt else "✗"
+        print(f"  Sample {i+1}: P(pass)={p:.3f}  Pred={pred}  True={yt}  {status}")
+
+    acc = accuracy(y_test, preds)
+    prec, rec, f1 = precision_recall_f1(y_test, preds)
+    print(f"\nAccuracy : {acc:.2f}")
+    print(f"Precision: {prec:.2f}")
+    print(f"Recall   : {rec:.2f}")
+    print(f"F1 Score : {f1:.2f}")
+```
+
+---
+
+## 3.5 Multiclass Extension: One-vs-Rest
+
+For K > 2 classes, train K separate binary classifiers:
+- Classifier 1: "Is this class A?" (vs everything else)
+- Classifier 2: "Is this class B?" (vs everything else)
+- ...
+- Predict the class with the highest probability.
+
+```{python}
+class MulticlassLogisticRegression:
+    """One-vs-Rest multiclass logistic regression."""
+
+    def __init__(self, lr=0.1, n_iter=1000):
+        self.lr, self.n_iter = lr, n_iter
+        self.classifiers = {}
+
+    def fit(self, X, y):
+        classes = list(set(y))
+        for c in classes:
+            y_binary = [1 if yi == c else 0 for yi in y]
+            clf = LogisticRegression(self.lr, self.n_iter)
+            clf.fit(X, y_binary)
+            self.classifiers[c] = clf
+        return self
+
+    def predict(self, X):
+        predictions = []
+        for xi in X:
+            probs = {c: clf.predict_proba([xi])[0]
+                     for c, clf in self.classifiers.items()}
+            predictions.append(max(probs, key=probs.get))
+        return predictions
+```
+
+---
+
+## ✅ Chapter Summary
+
+| Concept | Key Formula |
+|---------|------------|
+| Sigmoid | `σ(z) = 1/(1+e⁻ᶻ)` |
+| Model | `ŷ = σ(wᵀx)` |
+| Loss | `J = -(1/n) Σ [y log ŷ + (1-y) log(1-ŷ)]` |
+| Gradient | `∂J/∂w = (1/n) Xᵀ(ŷ - y)` |
+
+---
+
+## 📝 Exercises
+
+1. Plot the sigmoid function for z ∈ [−10, 10].
+2. Why does MSE create a non-convex cost surface for logistic regression? Think about what happens when you compose MSE with the sigmoid.
+3. Implement a threshold-tuning function that finds the threshold maximizing F1 score on a validation set.
+4. Add L2 regularization to `LogisticRegression.fit()`.
+
+---
+
+**← Previous:** [Chapter 02: Linear Regression](chapter-02-linear-regression.qmd)  
+**→ Next:** [Chapter 04: K-Nearest Neighbors](chapter-04-knn.qmd)

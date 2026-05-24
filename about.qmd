@@ -1,0 +1,79 @@
+---
+title: "About This Tutorial"
+subtitle: "Machine Learning in Python — from scratch, for everyone"
+date: last-modified
+toc: true
+toc-depth: 2
+number-sections: false
+---
+
+## What Is This?
+
+**Machine Learning in Python** is a free, open-source tutorial that teaches every major ML algorithm by building it from scratch using only the Python standard library and the built-in `math` module — no NumPy, no scikit-learn, no black boxes.
+
+The goal is to give you a genuine understanding of *how* these algorithms work, not just how to call a library function.
+
+---
+
+## Who Is It For?
+
+This tutorial is designed for:
+
+- Python programmers who want to understand ML from first principles
+- Students taking an introductory ML course and looking for a practical companion
+- Engineers who use ML libraries and want to demystify what's happening under the hood
+- Anyone curious about the mathematics behind modern AI systems
+
+**You need:** basic Python (variables, loops, functions, lists) and high-school algebra. No prior ML experience required.
+
+---
+
+## Structure
+
+The tutorial is organized into three levels:
+
+| Level | Chapters | Topics |
+|-------|----------|--------|
+| 🟢 Beginner | 00–05 | Prerequisites, Intro to ML, Linear Regression, Logistic Regression, KNN, Naive Bayes |
+| 🟡 Intermediate | 06–08, 12–13 | Decision Trees, SVM, Ensemble Methods, K-Means, PCA |
+| 🔴 Advanced | 09–11, 14 | Neural Networks, CNNs, RNNs, Reinforcement Learning |
+| 📊 All Levels | 15 | Model Evaluation & Best Practices |
+
+Each chapter includes:
+
+- Intuitive explanations before any math
+- Step-by-step derivations
+- Full Python implementations from scratch
+- Worked examples with real output
+- Exercises to test your understanding
+
+---
+
+## Philosophy
+
+> *"I hear and I forget. I see and I remember. I do and I understand."* — Confucius
+
+Every algorithm in this tutorial is implemented without ML libraries. This means:
+
+- No hidden behaviour — you can read every line
+- Genuine understanding — you can modify and experiment
+- Portable knowledge — the math translates to any language or framework
+
+---
+
+## License
+
+This tutorial is released under the [MIT License](https://opensource.org/licenses/MIT).
+You are free to use, copy, modify, and distribute it — with attribution.
+
+---
+
+## Contributing
+
+Found a bug? Have an improvement? Open an issue or pull request on [GitHub](https://github.com/zia207/ML-python).
+
+---
+
+## Author
+
+Built with [Quarto](https://quarto.org) and hosted on GitHub Pages.

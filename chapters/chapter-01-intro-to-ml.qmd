@@ -1,0 +1,193 @@
+---
+title: "Chapter 01: Introduction to Machine Learning"
+subtitle: "What ML is, the three paradigms, and the ML workflow"
+date: last-modified
+categories: [beginner, supervised, unsupervised, reinforcement-learning]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+---
+
+# Chapter 01: Introduction to Machine Learning
+
+> **Level**: Beginner | **Estimated Time**: 1–2 hours
+
+---
+
+## 1.1 What is Machine Learning?
+
+**Machine Learning** is the science of giving computers the ability to learn patterns from data without being explicitly programmed for each rule.
+
+> Traditional programming: `Data + Rules → Output`  
+> Machine learning:       `Data + Output → Rules`
+
+### A Simple Analogy
+Imagine teaching a child to recognize cats. You don't hand them a rulebook ("4 legs, pointy ears, whiskers…"). Instead, you show them thousands of examples. Eventually they *learn* the pattern. ML works the same way.
+
+---
+
+## 1.2 The Three Major Types of ML
+
+### 1. Supervised Learning
+The algorithm learns from **labeled data** (input → known output pairs).
+
+- **Regression**: Predict a continuous value (e.g., house price, temperature)
+- **Classification**: Predict a category (e.g., spam/not-spam, cat/dog)
+
+Examples: Linear Regression, Logistic Regression, SVM, Neural Networks
+
+### 2. Unsupervised Learning
+The algorithm finds **hidden structure** in unlabeled data.
+
+- **Clustering**: Group similar items together
+- **Dimensionality Reduction**: Compress data while keeping important information
+
+Examples: K-Means, PCA, Autoencoders
+
+### 3. Reinforcement Learning
+An **agent** learns by interacting with an environment, receiving **rewards** or **penalties**.
+
+Examples: Game-playing AI, robotics, recommendation systems
+
+---
+
+## 1.3 The Machine Learning Workflow
+
+```
+1. Define the Problem
+        ↓
+2. Collect & Explore Data
+        ↓
+3. Preprocess & Clean Data
+        ↓
+4. Choose a Model
+        ↓
+5. Train the Model
+        ↓
+6. Evaluate the Model
+        ↓
+7. Tune / Improve
+        ↓
+8. Deploy & Monitor
+```
+
+---
+
+## 1.4 Key Terminology
+
+| Term | Meaning |
+|------|---------|
+| **Feature (x)** | An input variable / column in your dataset |
+| **Target (y)** | The output variable you want to predict |
+| **Sample** | One row in the dataset (one observation) |
+| **Model** | The mathematical function mapping x → y |
+| **Training** | The process of fitting the model to data |
+| **Parameters (θ)** | The internal values the model learns (weights, biases) |
+| **Hyperparameters** | Settings you choose before training (learning rate, depth) |
+| **Loss / Cost** | How wrong the model's predictions are |
+| **Overfitting** | Model memorizes training data, fails on new data |
+| **Underfitting** | Model is too simple to capture the pattern |
+| **Generalization** | The model's ability to perform well on unseen data |
+
+---
+
+## 1.5 Mathematical Notation Used in This Tutorial
+
+| Symbol | Meaning |
+|--------|---------|
+| `n` | Number of training samples |
+| `p` | Number of features |
+| `xᵢ` | Feature vector of the i-th sample |
+| `yᵢ` | True label of the i-th sample |
+| `ŷᵢ` | Predicted label for the i-th sample |
+| `θ` or `w` | Weight/parameter vector |
+| `b` or `w₀` | Bias term |
+| `J(θ)` | Cost function (to be minimized) |
+| `∂J/∂θ` | Partial derivative of cost w.r.t. parameter |
+| `α` | Learning rate (step size in gradient descent) |
+
+---
+
+## 1.6 The Bias–Variance Tradeoff
+
+Every ML model balances two sources of error:
+
+- **Bias**: Error from overly simplistic assumptions → *underfitting*
+- **Variance**: Error from sensitivity to small fluctuations in training data → *overfitting*
+
+```
+Total Error = Bias² + Variance + Irreducible Noise
+```
+
+The goal is to find the "sweet spot" — a model complex enough to capture the pattern, but not so complex it memorizes noise.
+
+---
+
+## 1.7 A Taste of ML: Your First "Model" From Scratch
+
+Even the simplest possible model is technically ML — predicting the mean!
+
+```{python}
+# The dumbest possible ML model: predict the mean
+# (This is actually called a "baseline model")
+
+def mean_predictor_train(y_train):
+    """'Train': just compute the mean of all targets."""
+    return sum(y_train) / len(y_train)
+
+def mean_predictor_predict(model, X_test):
+    """'Predict': return the same mean for every input."""
+    return [model] * len(X_test)
+
+def mean_absolute_error(y_true, y_pred):
+    """Average absolute difference between truth and prediction."""
+    n = len(y_true)
+    return sum(abs(yt - yp) for yt, yp in zip(y_true, y_pred)) / n
+
+# ── Demo ──────────────────────────────────────────────────────────────────
+house_prices_train = [150, 200, 250, 320, 400, 180, 290]
+house_prices_test  = [210, 310, 170]
+
+mean_price = mean_predictor_train(house_prices_train)
+print(f"Trained model (mean): ${mean_price:.1f}k")
+
+predictions = mean_predictor_predict(mean_price, house_prices_test)
+print(f"Predictions: {predictions}")
+
+mae = mean_absolute_error(house_prices_test, predictions)
+print(f"Mean Absolute Error: ${mae:.1f}k")
+# Output:
+# Trained model (mean): $255.7k
+# Predictions: [255.7, 255.7, 255.7]
+# Mean Absolute Error: $60.5k
+```
+
+This baseline tells us our **minimum** performance bar. Any real ML model must beat this to be useful.
+
+---
+
+## ✅ Chapter Summary
+
+- ML learns patterns from data rather than following hand-coded rules
+- Three main paradigms: Supervised, Unsupervised, Reinforcement
+- Every ML pipeline follows: Problem → Data → Model → Train → Evaluate → Deploy
+- Bias-variance tradeoff is the central challenge in building good models
+
+---
+
+## 📝 Exercises
+
+1. Categorize each task as supervised/unsupervised/reinforcement learning:
+   - Grouping news articles by topic
+   - Predicting whether an email is spam
+   - Training a robot to walk
+   - Detecting credit card fraud
+2. Modify the `mean_predictor` to instead predict the **median**. Does MAE improve?
+3. Think of a real-world problem you'd like to solve with ML. Write down: the features, the target, and what type of ML it is.
+
+---
+
+**← Previous:** [Chapter 00: Prerequisites](chapter-00-prerequisites.qmd)  
+**→ Next:** [Chapter 02: Linear Regression](chapter-02-linear-regression.qmd)

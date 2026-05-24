@@ -1,0 +1,288 @@
+---
+title: "Chapter 13: Principal Component Analysis"
+subtitle: "Covariance, eigenvectors, and dimensionality reduction"
+date: last-modified
+categories: [intermediate, unsupervised, dimensionality-reduction]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+---
+
+# Chapter 13: Principal Component Analysis (PCA)
+
+> **Level**: Intermediate–Advanced | **Estimated Time**: 4–5 hours
+
+---
+
+## 13.1 Intuition
+
+PCA finds the directions of **maximum variance** in high-dimensional data and projects the data onto a lower-dimensional subspace.
+
+Think of it as finding the "best viewing angles" for your data:
+- Principal Component 1 (PC1): direction explaining the most variance
+- PC2: direction explaining the second-most variance, perpendicular to PC1
+- ...
+
+Applications: dimensionality reduction, visualization, noise reduction, feature extraction.
+
+---
+
+## 13.2 Mathematical Foundation
+
+### Covariance Matrix
+
+For a dataset X (mean-centered), the covariance matrix is:
+```
+Σ = (1/n) XᵀX      (p×p matrix, p = number of features)
+```
+
+Σᵢⱼ tells us how features i and j co-vary.
+
+### Eigendecomposition
+
+We find the eigenvectors and eigenvalues of Σ:
+```
+Σ · v = λ · v
+```
+
+Where:
+- `v` is an eigenvector (a principal component direction)
+- `λ` is the eigenvalue (the variance explained by that direction)
+
+The eigenvectors are **orthogonal** and form the new coordinate system.  
+Sort by eigenvalue descending → the first eigenvector explains the most variance.
+
+### Projection
+
+To reduce from p dimensions to d dimensions (d < p):
+```
+Z = X · V_d    where V_d = matrix of top d eigenvectors
+```
+
+---
+
+## 13.3 From-Scratch Python Implementation
+
+```{python}
+# pca.py
+import math
+
+# ── Linear algebra utilities ──────────────────────────────────────────────
+
+def mean_center(X):
+    """Subtract the mean of each feature."""
+    n, p = len(X), len(X[0])
+    means = [sum(X[i][j] for i in range(n))/n for j in range(p)]
+    return [[X[i][j] - means[j] for j in range(p)] for i in range(n)], means
+
+def covariance_matrix(X):
+    """Compute p×p covariance matrix from mean-centered X."""
+    n, p = len(X), len(X[0])
+    C = [[0.0]*p for _ in range(p)]
+    for i in range(p):
+        for j in range(p):
+            C[i][j] = sum(X[k][i] * X[k][j] for k in range(n)) / n
+    return C
+
+def mat_mul(A, B):
+    m, k, l = len(A), len(A[0]), len(B[0])
+    return [[sum(A[i][r]*B[r][j] for r in range(k)) for j in range(l)] for i in range(m)]
+
+def dot(v1, v2):
+    return sum(a*b for a,b in zip(v1,v2))
+
+def norm(v):
+    return math.sqrt(sum(x**2 for x in v))
+
+def normalize(v):
+    n = norm(v)
+    return [x/n for x in v]
+
+def scalar_vec(s, v):
+    return [s*x for x in v]
+
+def vec_sub(a, b):
+    return [x-y for x,y in zip(a,b)]
+
+# ── Power Iteration for dominant eigenvector ──────────────────────────────
+
+def power_iteration(A, n_iter=1000, tol=1e-9):
+    """Find the dominant eigenvector of symmetric matrix A."""
+    import random
+    n = len(A)
+    v = normalize([random.gauss(0,1) for _ in range(n)])
+
+    for _ in range(n_iter):
+        # Multiply A·v
+        Av = [sum(A[i][j]*v[j] for j in range(n)) for i in range(n)]
+        v_new = normalize(Av)
+        # Check convergence
+        if norm(vec_sub(v_new, v)) < tol:
+            break
+        v = v_new
+
+    eigenvalue = dot(v, [sum(A[i][j]*v[j] for j in range(n)) for i in range(n)])
+    return eigenvalue, v
+
+def deflate(A, eigenvalue, eigenvector):
+    """Remove contribution of one eigenvector from A (deflation)."""
+    n = len(A)
+    v = eigenvector
+    outer = [[v[i]*v[j] for j in range(n)] for i in range(n)]
+    return [[A[i][j] - eigenvalue * outer[i][j] for j in range(n)] for i in range(n)]
+
+def eigen_decompose(A, n_components):
+    """Compute top n_components eigenvectors using power iteration + deflation."""
+    eigenvalues, eigenvectors = [], []
+    A_deflated = [row[:] for row in A]
+
+    for _ in range(n_components):
+        lam, v = power_iteration(A_deflated)
+        eigenvalues.append(lam)
+        eigenvectors.append(v)
+        A_deflated = deflate(A_deflated, lam, v)
+
+    return eigenvalues, eigenvectors
+
+
+# ── PCA Class ─────────────────────────────────────────────────────────────
+
+class PCA:
+    """
+    Principal Component Analysis via eigendecomposition.
+    Pure Python — no ML libraries.
+    """
+
+    def __init__(self, n_components=2):
+        self.n_components = n_components
+        self.components = None       # eigenvectors (principal axes)
+        self.explained_variance = None
+        self.explained_variance_ratio = None
+        self.mean = None
+
+    def fit(self, X):
+        """Compute principal components from data X."""
+        X_centered, self.mean = mean_center(X)
+        C = covariance_matrix(X_centered)
+        eigenvalues, eigenvectors = eigen_decompose(C, self.n_components)
+
+        self.components = eigenvectors           # shape: [n_components, p]
+        self.explained_variance = eigenvalues
+
+        total_var = sum(
+            sum(C[i][i] for i in range(len(C)))   # trace = sum of all eigenvalues
+            for _ in [None]   # just total variance
+        )
+        # Recompute trace properly
+        total_var = sum(C[i][i] for i in range(len(C)))
+        self.explained_variance_ratio = [ev / total_var for ev in eigenvalues]
+
+        return self
+
+    def transform(self, X):
+        """Project X onto principal components."""
+        X_centered = [[X[i][j] - self.mean[j] for j in range(len(self.mean))]
+                      for i in range(len(X))]
+        return [
+            [dot(x, pc) for pc in self.components]
+            for x in X_centered
+        ]
+
+    def fit_transform(self, X):
+        return self.fit(X).transform(X)
+
+    def inverse_transform(self, Z):
+        """Reconstruct data from reduced representation (approximate)."""
+        p = len(self.components[0])
+        result = []
+        for z in Z:
+            # Sum of contribution from each principal component
+            reconstruction = [0.0] * p
+            for k in range(self.n_components):
+                contribution = scalar_vec(z[k], self.components[k])
+                reconstruction = [reconstruction[j] + contribution[j] for j in range(p)]
+            # Add back mean
+            result.append([reconstruction[j] + self.mean[j] for j in range(p)])
+        return result
+
+    def print_summary(self):
+        print(f"PCA Summary ({self.n_components} components):")
+        cumulative = 0.0
+        for i, (ev, evr) in enumerate(zip(self.explained_variance, self.explained_variance_ratio)):
+            cumulative += evr
+            print(f"  PC{i+1}: variance={ev:.4f}  ratio={evr:.3f}  cumulative={cumulative:.3f}")
+
+
+# ── Demo ──────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import random
+    random.seed(42)
+
+    # Generate correlated 3D data (lives near a 2D plane)
+    n = 30
+    X = []
+    for _ in range(n):
+        t = random.gauss(0, 2)
+        s = random.gauss(0, 1)
+        x1 = t + random.gauss(0, 0.1)
+        x2 = 0.7*t + s + random.gauss(0, 0.1)
+        x3 = 0.3*t - 0.5*s + random.gauss(0, 0.1)
+        X.append([x1, x2, x3])
+
+    pca = PCA(n_components=2)
+    Z = pca.fit_transform(X)
+    pca.print_summary()
+
+    print(f"\nOriginal shape: {len(X)} × {len(X[0])}")
+    print(f"Reduced shape:  {len(Z)} × {len(Z[0])}")
+    print(f"\nFirst 5 projected points:")
+    for z in Z[:5]:
+        print(f"  [{z[0]:6.3f}, {z[1]:6.3f}]")
+
+    # Reconstruction error
+    X_reconstructed = pca.inverse_transform(Z)
+    mse = sum(
+        sum((X[i][j]-X_reconstructed[i][j])**2 for j in range(len(X[0])))
+        for i in range(len(X))
+    ) / (len(X) * len(X[0]))
+    print(f"\nReconstruction MSE: {mse:.4f}")
+```
+
+---
+
+## 13.4 Explained Variance
+
+The proportion of total variance explained by the first d components tells you how much information is retained:
+
+```
+Explained variance ratio for PCₖ = λₖ / Σᵢ λᵢ
+```
+
+Common rule: choose d such that cumulative explained variance ≥ 95%.
+
+---
+
+## 13.5 PCA vs Feature Selection
+
+| Aspect | PCA | Feature Selection |
+|--------|-----|------------------|
+| Output | New transformed features | Subset of original features |
+| Interpretability | Low (combinations) | High (original features) |
+| Removes redundancy | Yes | Partially |
+| Unsupervised | Yes | Usually yes |
+
+---
+
+## 📝 Exercises
+
+1. Prove that eigenvectors of a symmetric matrix are orthogonal.
+2. What is **whitening** (PCA whitening) and when is it used?
+3. Implement **Kernel PCA** by replacing the covariance matrix with a kernel matrix.
+4. When would PCA **hurt** model performance?
+
+---
+
+**← Previous:** [Chapter 12: K-Means](chapter-12-kmeans.qmd)  
+**→ Next:** [Chapter 14: Reinforcement Learning](chapter-14-reinforcement-learning.qmd)
