@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 13: Principal Component Analysis (PCA)
@@ -33,33 +34,30 @@ Applications: dimensionality reduction, visualization, noise reduction, feature 
 
 ### Covariance Matrix
 
-For a dataset X (mean-centered), the covariance matrix is:
-```
-Σ = (1/n) XᵀX      (p×p matrix, p = number of features)
-```
+For a dataset $\mathbf{X}$ (mean-centered), the covariance matrix is:
 
-Σᵢⱼ tells us how features i and j co-vary.
+$$\boldsymbol{\Sigma} = \frac{1}{n} \mathbf{X}^\top \mathbf{X} \quad (p \times p \text{ matrix, } p = \text{number of features})$$
+
+$\Sigma_{ij}$ tells us how features $i$ and $j$ co-vary.
 
 ### Eigendecomposition
 
-We find the eigenvectors and eigenvalues of Σ:
-```
-Σ · v = λ · v
-```
+We find the eigenvectors and eigenvalues of $\boldsymbol{\Sigma}$:
+
+$$\boldsymbol{\Sigma} \cdot \mathbf{v} = \lambda \cdot \mathbf{v}$$
 
 Where:
-- `v` is an eigenvector (a principal component direction)
-- `λ` is the eigenvalue (the variance explained by that direction)
+- $\mathbf{v}$ is an eigenvector (a principal component direction)
+- $\lambda$ is the eigenvalue (the variance explained by that direction)
 
-The eigenvectors are **orthogonal** and form the new coordinate system.  
+The eigenvectors are **orthogonal** and form the new coordinate system.
 Sort by eigenvalue descending → the first eigenvector explains the most variance.
 
 ### Projection
 
-To reduce from p dimensions to d dimensions (d < p):
-```
-Z = X · V_d    where V_d = matrix of top d eigenvectors
-```
+To reduce from $p$ dimensions to $d$ dimensions ($d < p$):
+
+$$\mathbf{Z} = \mathbf{X} \cdot \mathbf{V}_d \quad \text{where } \mathbf{V}_d = \text{matrix of top } d \text{ eigenvectors}$$
 
 ---
 
@@ -171,11 +169,6 @@ class PCA:
         self.components = eigenvectors           # shape: [n_components, p]
         self.explained_variance = eigenvalues
 
-        total_var = sum(
-            sum(C[i][i] for i in range(len(C)))   # trace = sum of all eigenvalues
-            for _ in [None]   # just total variance
-        )
-        # Recompute trace properly
         total_var = sum(C[i][i] for i in range(len(C)))
         self.explained_variance_ratio = [ev / total_var for ev in eigenvalues]
 
@@ -254,13 +247,11 @@ if __name__ == "__main__":
 
 ## 13.4 Explained Variance
 
-The proportion of total variance explained by the first d components tells you how much information is retained:
+The proportion of total variance explained by the first $d$ components tells you how much information is retained:
 
-```
-Explained variance ratio for PCₖ = λₖ / Σᵢ λᵢ
-```
+$$\text{Explained variance ratio for PC}_k = \frac{\lambda_k}{\sum_i \lambda_i}$$
 
-Common rule: choose d such that cumulative explained variance ≥ 95%.
+Common rule: choose $d$ such that cumulative explained variance $\geq 95\%$.
 
 ---
 
@@ -284,5 +275,5 @@ Common rule: choose d such that cumulative explained variance ≥ 95%.
 
 ---
 
-**← Previous:** [Chapter 12: K-Means](chapter-12-kmeans.qmd)  
+**← Previous:** [Chapter 12: K-Means](chapter-12-kmeans.qmd)
 **→ Next:** [Chapter 14: Reinforcement Learning](chapter-14-reinforcement-learning.qmd)

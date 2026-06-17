@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 ::: {.callout-note appearance="minimal"}
@@ -30,26 +31,24 @@ This tutorial assumes:
 ## 0.2 Math Refresher
 
 ### Vectors and Matrices
-A **vector** is an ordered list of numbers: `x = [x₁, x₂, ..., xₙ]`  
+A **vector** is an ordered list of numbers: $\mathbf{x} = [x_1, x_2, \ldots, x_n]$
 A **matrix** is a 2D array of numbers with rows and columns.
 
 **Dot product** (used constantly in ML):
-```
-x · w = x₁w₁ + x₂w₂ + ... + xₙwₙ
-```
+
+$$\mathbf{x} \cdot \mathbf{w} = x_1 w_1 + x_2 w_2 + \cdots + x_n w_n$$
 
 ### Summation Notation
-```
-Σᵢ xᵢ  means  x₁ + x₂ + ... + xₙ
-```
+
+$$\sum_{i=1}^{n} x_i \text{ means } x_1 + x_2 + \cdots + x_n$$
 
 ### Derivatives (Calculus basics)
-The derivative `df/dx` measures how much `f` changes when `x` changes slightly.  
-Key rule: if `f(x) = x²`, then `df/dx = 2x`
+The derivative $\frac{df}{dx}$ measures how much $f$ changes when $x$ changes slightly.
+Key rule: if $f(x) = x^2$, then $\frac{df}{dx} = 2x$
 
 ### Logarithms
-`log(x)` is the inverse of exponentiation. Used in probability and loss functions.  
-Key property: `log(a × b) = log(a) + log(b)`
+$\log(x)$ is the inverse of exponentiation. Used in probability and loss functions.
+Key property: $\log(a \times b) = \log(a) + \log(b)$
 
 ---
 
@@ -68,7 +67,7 @@ pip install matplotlib
 
 ## 0.4 Building Our Own Math Utilities (From Scratch)
 
-Throughout this tutorial we will **never use NumPy or scikit-learn** for core algorithms.  
+Throughout this tutorial we will **never use NumPy or scikit-learn** for core algorithms.
 Here are the basic utilities we will reuse in every chapter:
 
 ```{python}
@@ -198,15 +197,13 @@ def train_test_split(X, y, test_ratio=0.2, seed=42):
 
 Most ML algorithms work better when features are on the same scale.
 
-**Min-Max Scaling** maps values to [0, 1]:
-```
-x_scaled = (x - x_min) / (x_max - x_min)
-```
+**Min-Max Scaling** maps values to $[0, 1]$:
+
+$$x_{\text{scaled}} = \frac{x - x_{\min}}{x_{\max} - x_{\min}}$$
 
 **Z-score Standardization** maps to mean=0, std=1:
-```
-x_std = (x - μ) / σ
-```
+
+$$x_{\text{std}} = \frac{x - \mu}{\sigma}$$
 
 ```{python}
 def min_max_scale(X):

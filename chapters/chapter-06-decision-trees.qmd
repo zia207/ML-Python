@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 06: Decision Trees
@@ -34,23 +35,23 @@ To build a tree, at each node we ask: *which feature and threshold best splits t
 We measure split quality by **impurity** — how mixed the classes are.
 
 ### Entropy (Information Theory)
-```
-H(S) = -Σ_c p_c · log₂(p_c)
-```
-- H = 0: perfectly pure (all one class)
-- H = 1: maximally impure (50/50 split for binary)
+
+$$H(S) = -\sum_c p_c \log_2(p_c)$$
+
+- $H = 0$: perfectly pure (all one class)
+- $H = 1$: maximally impure (50/50 split for binary)
 
 ### Gini Impurity (used in CART)
-```
-Gini(S) = 1 - Σ_c p_c²
-```
+
+$$\text{Gini}(S) = 1 - \sum_c p_c^2$$
+
 - Gini = 0: pure
 - Gini = 0.5: maximally impure (binary case)
 
 ### Information Gain
-```
-IG(S, feature) = H(S) - Σ_split (|S_split|/|S|) · H(S_split)
-```
+
+$$\text{IG}(S, \text{feature}) = H(S) - \sum_{\text{split}} \frac{|S_{\text{split}}|}{|S|} \cdot H(S_{\text{split}})$$
+
 We choose the feature/threshold that **maximizes information gain**.
 
 ---
@@ -63,11 +64,11 @@ We choose the feature/threshold that **maximizes information gain**.
 function BuildTree(X, y, depth):
     if stopping_condition_met:
         return Leaf(majority_class(y))
-    
+
     best_feature, best_threshold = find_best_split(X, y)
     left_X, left_y   = samples where x[feature] ≤ threshold
     right_X, right_y = samples where x[feature] >  threshold
-    
+
     return Node(
         feature    = best_feature,
         threshold  = best_threshold,
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     tree.fit(X_train, y_train)
 
     print("Decision Tree Structure:")
-    tree.print_tree(feature_names=['x₁', 'x₂'])
+    tree.print_tree(feature_names=['x1', 'x2'])
 
     preds = tree.predict([[0,0],[0,1],[1,0],[1,1]])
     print("\nXOR Predictions:", preds)  # [0, 1, 1, 0]
@@ -353,9 +354,9 @@ Decision trees easily overfit (especially deep ones). Control this with:
 
 | Concept | Formula/Rule |
 |---------|-------------|
-| Gini impurity | `1 - Σ pᶜ²` |
-| Entropy | `-Σ pᶜ log₂ pᶜ` |
-| Information gain | `H(parent) - weighted avg H(children)` |
+| Gini impurity | $1 - \sum_c p_c^2$ |
+| Entropy | $-\sum_c p_c \log_2 p_c$ |
+| Information gain | $H(\text{parent}) - \text{weighted avg}\ H(\text{children})$ |
 | Splitting rule | Choose feature/threshold maximizing IG |
 | Stopping | Max depth, min samples, pure node |
 
@@ -365,10 +366,10 @@ Decision trees easily overfit (especially deep ones). Control this with:
 
 1. Draw a decision tree by hand for a simple AND/OR gate.
 2. Prove that Gini = 0 when a node is pure.
-3. Implement **cost-complexity pruning** (reduce tree size using a complexity parameter α).
+3. Implement **cost-complexity pruning** (reduce tree size using a complexity parameter $\alpha$).
 4. Visualize information gain vs threshold for a single feature split.
 
 ---
 
-**← Previous:** [Chapter 05: Naive Bayes](chapter-05-naive-bayes.qmd)  
+**← Previous:** [Chapter 05: Naive Bayes](chapter-05-naive-bayes.qmd)
 **→ Next:** [Chapter 07: Support Vector Machines](chapter-07-svm.qmd)

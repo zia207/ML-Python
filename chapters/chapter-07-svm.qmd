@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 07: Support Vector Machines (SVM)
@@ -30,29 +31,23 @@ Instead of any separating line, find the one that is *farthest from all training
 
 ### Linear SVM (Hard Margin)
 
-A hyperplane: `wᵀx + b = 0`
+A hyperplane: $\mathbf{w}^\top \mathbf{x} + b = 0$
 
 Constraints (for linearly separable data):
-```
-yᵢ(wᵀxᵢ + b) ≥ 1  for all i
-```
 
-The margin width = `2 / ||w||`
+$$y_i(\mathbf{w}^\top \mathbf{x}_i + b) \geq 1 \quad \text{for all } i$$
 
-**Objective**: Maximize margin = minimize `||w||²/2`
+The margin width $= \frac{2}{\|\mathbf{w}\|}$
 
-```
-Minimize:   (1/2) ||w||²
-Subject to: yᵢ(wᵀxᵢ + b) ≥ 1  ∀i
-```
+**Objective**: Maximize margin = minimize $\frac{\|\mathbf{w}\|^2}{2}$
+
+$$\text{Minimize: } \frac{1}{2}\|\mathbf{w}\|^2 \quad \text{Subject to: } y_i(\mathbf{w}^\top \mathbf{x}_i + b) \geq 1 \quad \forall i$$
 
 ### Soft Margin SVM (allows misclassifications)
 
-Introduce **slack variables** ξᵢ ≥ 0:
-```
-Minimize:   (1/2)||w||² + C Σᵢ ξᵢ
-Subject to: yᵢ(wᵀxᵢ + b) ≥ 1 - ξᵢ
-```
+Introduce **slack variables** $\xi_i \geq 0$:
+
+$$\text{Minimize: } \frac{1}{2}\|\mathbf{w}\|^2 + C \sum_i \xi_i \quad \text{Subject to: } y_i(\mathbf{w}^\top \mathbf{x}_i + b) \geq 1 - \xi_i$$
 
 **C** controls the bias-variance tradeoff:
 - Small C: wider margin, more misclassifications (high bias)
@@ -61,9 +56,8 @@ Subject to: yᵢ(wᵀxᵢ + b) ≥ 1 - ξᵢ
 ### Hinge Loss
 
 The soft-margin objective is equivalent to minimizing:
-```
-J(w) = (1/n) Σᵢ max(0, 1 - yᵢ(wᵀxᵢ + b)) + λ||w||²
-```
+
+$$J(\mathbf{w}) = \frac{1}{n} \sum_i \max(0, 1 - y_i(\mathbf{w}^\top \mathbf{x}_i + b)) + \lambda\|\mathbf{w}\|^2$$
 
 This is the **hinge loss** + L2 regularization, allowing stochastic gradient descent.
 
@@ -73,22 +67,18 @@ This is the **hinge loss** + L2 regularization, allowing stochastic gradient des
 
 For non-linearly separable data, map features to a higher-dimensional space where they *are* linearly separable:
 
-```
-x → φ(x)    (feature map to higher dimension)
-```
+$$\mathbf{x} \to \phi(\mathbf{x}) \quad \text{(feature map to higher dimension)}$$
 
-The **kernel trick**: compute dot products in the transformed space without explicitly computing φ:
+The **kernel trick**: compute dot products in the transformed space without explicitly computing $\phi$:
 
-```
-K(xᵢ, xⱼ) = φ(xᵢ)ᵀ φ(xⱼ)
-```
+$$K(\mathbf{x}_i, \mathbf{x}_j) = \phi(\mathbf{x}_i)^\top \phi(\mathbf{x}_j)$$
 
 | Kernel | Formula | Use case |
 |--------|---------|----------|
-| Linear | `xᵢᵀxⱼ` | Linearly separable data |
-| Polynomial | `(xᵢᵀxⱼ + c)ᵈ` | Polynomial boundaries |
-| RBF (Gaussian) | `exp(-γ||xᵢ-xⱼ||²)` | Most common choice |
-| Sigmoid | `tanh(κxᵢᵀxⱼ + c)` | Neural net-like |
+| Linear | $\mathbf{x}_i^\top \mathbf{x}_j$ | Linearly separable data |
+| Polynomial | $(\mathbf{x}_i^\top \mathbf{x}_j + c)^d$ | Polynomial boundaries |
+| RBF (Gaussian) | $\exp(-\gamma\|\mathbf{x}_i - \mathbf{x}_j\|^2)$ | Most common choice |
+| Sigmoid | $\tanh(\kappa \mathbf{x}_i^\top \mathbf{x}_j + c)$ | Neural net-like |
 
 ---
 
@@ -101,7 +91,7 @@ import math, random
 class LinearSVM:
     """
     Linear SVM using Subgradient Descent on Hinge Loss.
-    J(w,b) = C * Σ max(0, 1 - y(wᵀx + b)) + (1/2)||w||²
+    J(w,b) = C * sum max(0, 1 - y(w^T x + b)) + (1/2)||w||^2
     Pure Python — no ML libraries.
     """
 
@@ -181,20 +171,20 @@ if __name__ == "__main__":
 | Aspect | Detail |
 |--------|--------|
 | Core idea | Maximize margin between classes |
-| Decision boundary | `wᵀx + b = 0` |
-| Support vectors | Points with `yᵢ(wᵀxᵢ+b) = 1` |
-| C parameter | Regularization (small=wide margin) |
+| Decision boundary | $\mathbf{w}^\top \mathbf{x} + b = 0$ |
+| Support vectors | Points with $y_i(\mathbf{w}^\top \mathbf{x}_i + b) = 1$ |
+| C parameter | Regularization (small = wide margin) |
 | Kernel trick | Non-linear boundaries without explicit mapping |
 
 ---
 
 ## 📝 Exercises
 
-1. Implement a **kernel function** K(a,b) for RBF and modify SVM to use it.
+1. Implement a **kernel function** $K(\mathbf{a}, \mathbf{b})$ for RBF and modify SVM to use it.
 2. Compare SVM with C=0.01 vs C=100 on noisy data.
 3. Why does SVM only depend on the **support vectors** at test time?
 
 ---
 
-**← Previous:** [Chapter 06: Decision Trees](chapter-06-decision-trees.qmd)  
+**← Previous:** [Chapter 06: Decision Trees](chapter-06-decision-trees.qmd)
 **→ Next:** [Chapter 08: Ensemble Methods](chapter-08-ensemble-methods.qmd)

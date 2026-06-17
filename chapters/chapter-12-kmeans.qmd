@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 12: K-Means Clustering
@@ -20,7 +21,7 @@ code-tools: true
 
 K-Means is the most widely used **unsupervised** clustering algorithm.
 
-**Goal**: partition n data points into K clusters such that each point belongs to the cluster with the nearest mean (centroid).
+**Goal**: partition $n$ data points into $K$ clusters such that each point belongs to the cluster with the nearest mean (centroid).
 
 No labels needed — the algorithm discovers structure on its own.
 
@@ -36,7 +37,7 @@ No labels needed — the algorithm discovers structure on its own.
    b. Update step: recompute each centroid as the mean of its assigned points
 ```
 
-**Convergence**: assignments stop changing (or centroids move < ε).
+**Convergence**: assignments stop changing (or centroids move $< \varepsilon$).
 
 ---
 
@@ -44,11 +45,9 @@ No labels needed — the algorithm discovers structure on its own.
 
 K-Means minimizes the **Within-Cluster Sum of Squares (WCSS)**:
 
-```
-J = Σₖ Σᵢ∈Cₖ ||xᵢ - μₖ||²
-```
+$$J = \sum_{k=1}^{K} \sum_{\mathbf{x}_i \in C_k} \|\mathbf{x}_i - \boldsymbol{\mu}_k\|^2$$
 
-Where μₖ is the centroid of cluster k.
+Where $\boldsymbol{\mu}_k$ is the centroid of cluster $k$.
 
 This is a **non-convex** optimization problem → results depend on initialization.
 
@@ -260,7 +259,7 @@ if __name__ == "__main__":
 
 | Step | Math |
 |------|------|
-| Objective | Minimize `Σₖ Σᵢ∈Cₖ ||xᵢ - μₖ||²` |
+| Objective | Minimize $\sum_k \sum_{\mathbf{x}_i \in C_k} \|\mathbf{x}_i - \boldsymbol{\mu}_k\|^2$ |
 | Assignment | Each point → nearest centroid |
 | Update | Centroid = mean of assigned points |
 | K selection | Elbow method or silhouette score |
@@ -275,5 +274,5 @@ if __name__ == "__main__":
 
 ---
 
-**← Previous:** [Chapter 11: RNNs](chapter-11-rnn.qmd)  
+**← Previous:** [Chapter 11: RNNs](chapter-11-rnn.qmd)
 **→ Next:** [Chapter 13: PCA](chapter-13-pca.qmd)

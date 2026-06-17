@@ -55,8 +55,18 @@ website:
             href: chapters/chapter-11-rnn.qmd
           - text: "Ch 14 · Reinforcement Learning"
             href: chapters/chapter-14-reinforcement-learning.qmd
+          - text: "Ch 15 · LSTM"
+            href: chapters/chapter-15-lstm.qmd
+          - text: "Ch 16 · CNNs — Advanced"
+            href: chapters/chapter-16-cnn-advanced.qmd
+          - text: "Ch 17 · Graph Neural Networks"
+            href: chapters/chapter-17-gnn.qmd
+          - text: "Ch 18 · NLP"
+            href: chapters/chapter-18-nlp.qmd
+          - text: "Ch 19 · Generative Models"
+            href: chapters/chapter-19-generative-models.qmd
       - text: "Evaluation"
-        href: chapters/chapter-15-model-evaluation.qmd
+        href: chapters/chapter-20-model-evaluation.qmd
     right:
       - text: "References"
         href: references.qmd
@@ -109,10 +119,20 @@ website:
             href: chapters/chapter-11-rnn.qmd
           - text: "Ch 14 · Reinforcement Learning"
             href: chapters/chapter-14-reinforcement-learning.qmd
+          - text: "Ch 15 · LSTM"
+            href: chapters/chapter-15-lstm.qmd
+          - text: "Ch 16 · CNNs — Advanced"
+            href: chapters/chapter-16-cnn-advanced.qmd
+          - text: "Ch 17 · Graph Neural Networks"
+            href: chapters/chapter-17-gnn.qmd
+          - text: "Ch 18 · NLP"
+            href: chapters/chapter-18-nlp.qmd
+          - text: "Ch 19 · Generative Models"
+            href: chapters/chapter-19-generative-models.qmd
       - section: "📊 Best Practices"
         contents:
-          - text: "Ch 15 · Model Evaluation"
-            href: chapters/chapter-15-model-evaluation.qmd
+          - text: "Ch 20 · Model Evaluation"
+            href: chapters/chapter-20-model-evaluation.qmd
 
   page-footer:
     left: "© 2026 Machine Learning in Python Tutorial"

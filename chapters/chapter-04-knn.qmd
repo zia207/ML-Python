@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 04: K-Nearest Neighbors (KNN)
@@ -29,23 +30,23 @@ No training phase — it memorizes the entire dataset and does all computation a
 ## 4.2 Distance Metrics
 
 ### Euclidean Distance (L2)
-```
-d(a, b) = √[ Σᵢ (aᵢ - bᵢ)² ]
-```
+
+$$d(\mathbf{a}, \mathbf{b}) = \sqrt{\sum_{i=1}^{n} (a_i - b_i)^2}$$
+
 Most common. Sensitive to scale → always normalize first!
 
 ### Manhattan Distance (L1)
-```
-d(a, b) = Σᵢ |aᵢ - bᵢ|
-```
+
+$$d(\mathbf{a}, \mathbf{b}) = \sum_{i=1}^{n} |a_i - b_i|$$
+
 Less sensitive to outliers.
 
 ### Minkowski Distance (General)
-```
-d(a, b) = (Σᵢ |aᵢ - bᵢ|ᵖ)^(1/p)
-```
-- p=1: Manhattan
-- p=2: Euclidean
+
+$$d(\mathbf{a}, \mathbf{b}) = \left(\sum_{i=1}^{n} |a_i - b_i|^p\right)^{1/p}$$
+
+- $p=1$: Manhattan
+- $p=2$: Euclidean
 
 ---
 
@@ -65,10 +66,9 @@ d(a, b) = (Σᵢ |aᵢ - bᵢ|ᵖ)^(1/p)
 - **K=n**: Very rigid, high bias (just predicts the majority class always)
 - **Sweet spot**: Usually odd K (to avoid ties), often tried: 3, 5, 7, 11
 
-```
-As K increases:  Variance ↓  Bias ↑
-As K decreases:  Variance ↑  Bias ↓
-```
+As $K$ increases: Variance $\downarrow$, Bias $\uparrow$
+
+As $K$ decreases: Variance $\uparrow$, Bias $\downarrow$
 
 ---
 
@@ -251,8 +251,8 @@ As the number of features (dimensions) grows, KNN degrades dramatically:
 | Aspect | Detail |
 |--------|--------|
 | Type | Lazy learner (non-parametric) |
-| Training time | O(1) — just store data |
-| Prediction time | O(n·p) per query |
+| Training time | $O(1)$ — just store data |
+| Prediction time | $O(n \cdot p)$ per query |
 | Key hyperparameter | K (number of neighbors) |
 | Weakness | Slow at prediction, bad in high dimensions |
 
@@ -260,12 +260,12 @@ As the number of features (dimensions) grows, KNN degrades dramatically:
 
 ## 📝 Exercises
 
-1. Implement **weighted KNN** where closer neighbors get higher vote weight (`weight = 1/distance`).
+1. Implement **weighted KNN** where closer neighbors get higher vote weight ($\text{weight} = \frac{1}{d}$).
 2. What happens when K equals the size of the training set?
 3. Implement KNN regression with **distance-weighted averaging** instead of simple mean.
 4. Add support for the **Cosine similarity** distance metric.
 
 ---
 
-**← Previous:** [Chapter 03: Logistic Regression](chapter-03-logistic-regression.qmd)  
+**← Previous:** [Chapter 03: Logistic Regression](chapter-03-logistic-regression.qmd)
 **→ Next:** [Chapter 05: Naive Bayes](chapter-05-naive-bayes.qmd)

@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 10: Convolutional Neural Networks (CNNs)
@@ -30,15 +31,15 @@ Key idea: instead of connecting every neuron to every pixel (expensive, no spati
 
 ## 10.2 The Convolution Operation
 
-For a 2D image I and kernel K of size (f×f):
+For a 2D image $I$ and kernel $K$ of size $(f \times f)$:
 
-```
-(I * K)[i,j] = Σₘ Σₙ I[i+m, j+n] · K[m,n]
-```
+$$(I * K)[i,j] = \sum_m \sum_n I[i+m, j+n] \cdot K[m,n]$$
 
-Output size: `(H - f + 1) × (W - f + 1)` (no padding)  
-With padding p: `(H - f + 2p + 1) × (W - f + 2p + 1)`  
-With stride s: `⌊(H - f + 2p)/s⌋ + 1`
+Output size: $(H - f + 1) \times (W - f + 1)$ (no padding)
+
+With padding $p$: $(H - f + 2p + 1) \times (W - f + 2p + 1)$
+
+With stride $s$: $\left\lfloor\frac{H - f + 2p}{s}\right\rfloor + 1$
 
 **Parameter sharing**: the same kernel weights are used across all positions → massive parameter reduction vs fully connected.
 
@@ -207,5 +208,5 @@ if __name__ == "__main__":
 
 ---
 
-**← Previous:** [Chapter 09: Neural Networks](chapter-09-neural-networks.qmd)  
+**← Previous:** [Chapter 09: Neural Networks](chapter-09-neural-networks.qmd)
 **→ Next:** [Chapter 11: Recurrent Neural Networks](chapter-11-rnn.qmd)

@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 03: Logistic Regression
@@ -22,60 +23,55 @@ Despite the name, **Logistic Regression is a classification algorithm**, not reg
 
 **Problem**: Predict whether an email is spam (1) or not spam (0).
 
-Linear regression would give unbounded predictions (e.g., 2.7, -0.3) — meaningless for probabilities.  
-We need output in [0, 1]. The **sigmoid function** does exactly this.
+Linear regression would give unbounded predictions (e.g., 2.7, -0.3) — meaningless for probabilities.
+We need output in $[0, 1]$. The **sigmoid function** does exactly this.
 
 ---
 
 ## 3.2 The Sigmoid Function
 
-The sigmoid maps any real number to (0, 1):
+The sigmoid maps any real number to $(0, 1)$:
 
-```
-σ(z) = 1 / (1 + e⁻ᶻ)
-```
+$$\sigma(z) = \frac{1}{1 + e^{-z}}$$
 
 Properties:
-- σ(0) = 0.5
-- As z → +∞: σ(z) → 1
-- As z → -∞: σ(z) → 0
-- Derivative: σ'(z) = σ(z)(1 − σ(z))  ← very useful for backprop!
+- $\sigma(0) = 0.5$
+- As $z \to +\infty$: $\sigma(z) \to 1$
+- As $z \to -\infty$: $\sigma(z) \to 0$
+- Derivative: $\sigma'(z) = \sigma(z)(1 - \sigma(z))$ ← very useful for backprop!
 
 ---
 
 ## 3.3 Mathematical Formulation
 
 ### The Model
-```
-z = wᵀx = w₀ + w₁x₁ + ... + wₚxₚ
-ŷ = P(y=1 | x) = σ(z) = 1 / (1 + e⁻ᶻ)
-```
+
+$$z = \mathbf{w}^\top \mathbf{x} = w_0 + w_1 x_1 + \cdots + w_p x_p$$
+
+$$\hat{y} = P(y=1 \mid \mathbf{x}) = \sigma(z) = \frac{1}{1 + e^{-z}}$$
 
 ### Decision Rule
-```
-Predict class 1 if ŷ ≥ 0.5  (i.e., z ≥ 0)
-Predict class 0 if ŷ < 0.5  (i.e., z < 0)
-```
+
+$$\text{Predict class 1 if } \hat{y} \geq 0.5 \quad (z \geq 0)$$
+
+$$\text{Predict class 0 if } \hat{y} < 0.5 \quad (z < 0)$$
 
 ### Binary Cross-Entropy Loss (Log Loss)
 
-We can NOT use MSE here (it creates a non-convex surface with many local minima).  
+We can NOT use MSE here (it creates a non-convex surface with many local minima).
 Instead we use **Binary Cross-Entropy**, derived from Maximum Likelihood Estimation:
 
-```
-J(w) = -(1/n) Σᵢ [ yᵢ log(ŷᵢ) + (1-yᵢ) log(1-ŷᵢ) ]
-```
+$$J(\mathbf{w}) = -\frac{1}{n} \sum_{i=1}^{n} \left[ y_i \log(\hat{y}_i) + (1 - y_i) \log(1 - \hat{y}_i) \right]$$
 
 **Intuition**:
-- When y=1: loss = -log(ŷ) → penalizes predictions close to 0 heavily
-- When y=0: loss = -log(1-ŷ) → penalizes predictions close to 1 heavily
+- When $y=1$: loss $= -\log(\hat{y})$ → penalizes predictions close to 0 heavily
+- When $y=0$: loss $= -\log(1-\hat{y})$ → penalizes predictions close to 1 heavily
 
 ### Gradient for Gradient Descent
 
 The partial derivative (surprisingly clean!):
-```
-∂J/∂wⱼ = (1/n) Σᵢ (ŷᵢ - yᵢ) xᵢⱼ
-```
+
+$$\frac{\partial J}{\partial w_j} = \frac{1}{n} \sum_{i=1}^{n} (\hat{y}_i - y_i) x_{ij}$$
 
 This is the **same form as linear regression** — only the prediction function differs.
 
@@ -263,21 +259,21 @@ class MulticlassLogisticRegression:
 
 | Concept | Key Formula |
 |---------|------------|
-| Sigmoid | `σ(z) = 1/(1+e⁻ᶻ)` |
-| Model | `ŷ = σ(wᵀx)` |
-| Loss | `J = -(1/n) Σ [y log ŷ + (1-y) log(1-ŷ)]` |
-| Gradient | `∂J/∂w = (1/n) Xᵀ(ŷ - y)` |
+| Sigmoid | $\sigma(z) = \frac{1}{1+e^{-z}}$ |
+| Model | $\hat{y} = \sigma(\mathbf{w}^\top \mathbf{x})$ |
+| Loss | $J = -\frac{1}{n} \sum \left[ y \log \hat{y} + (1-y) \log(1-\hat{y}) \right]$ |
+| Gradient | $\frac{\partial J}{\partial \mathbf{w}} = \frac{1}{n} \mathbf{X}^\top (\hat{\mathbf{y}} - \mathbf{y})$ |
 
 ---
 
 ## 📝 Exercises
 
-1. Plot the sigmoid function for z ∈ [−10, 10].
+1. Plot the sigmoid function for $z \in [-10, 10]$.
 2. Why does MSE create a non-convex cost surface for logistic regression? Think about what happens when you compose MSE with the sigmoid.
 3. Implement a threshold-tuning function that finds the threshold maximizing F1 score on a validation set.
 4. Add L2 regularization to `LogisticRegression.fit()`.
 
 ---
 
-**← Previous:** [Chapter 02: Linear Regression](chapter-02-linear-regression.qmd)  
+**← Previous:** [Chapter 02: Linear Regression](chapter-02-linear-regression.qmd)
 **→ Next:** [Chapter 04: K-Nearest Neighbors](chapter-04-knn.qmd)

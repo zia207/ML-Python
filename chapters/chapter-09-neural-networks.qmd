@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 ::: {.callout-note appearance="minimal"}
@@ -20,7 +21,7 @@ code-tools: true
 
 ## 9.1 Intuition
 
-A neural network is a layered architecture of interconnected "neurons."  
+A neural network is a layered architecture of interconnected "neurons."
 Each layer transforms its input and passes it forward — like an assembly line of feature detectors.
 
 Inspired by (but not a literal model of) biological neurons.
@@ -30,31 +31,33 @@ Inspired by (but not a literal model of) biological neurons.
 ## 9.2 The Perceptron (Building Block)
 
 A single neuron computes:
-```
-z = w₀ + w₁x₁ + ... + wₚxₚ = wᵀx + b
-output = activation(z)
-```
+
+$$z = w_0 + w_1 x_1 + \cdots + w_p x_p = \mathbf{w}^\top \mathbf{x} + b$$
+
+$$\text{output} = \text{activation}(z)$$
 
 Common activation functions:
 
 | Name | Formula | Use |
 |------|---------|-----|
-| Sigmoid | `1/(1+e⁻ᶻ)` | Binary output |
-| ReLU | `max(0, z)` | Hidden layers (most popular) |
-| Tanh | `(eᶻ-e⁻ᶻ)/(eᶻ+e⁻ᶻ)` | Hidden layers, zero-centered |
-| Softmax | `eᶻⱼ / Σeᶻᵢ` | Multi-class output |
+| Sigmoid | $\frac{1}{1+e^{-z}}$ | Binary output |
+| ReLU | $\max(0, z)$ | Hidden layers (most popular) |
+| Tanh | $\frac{e^z - e^{-z}}{e^z + e^{-z}}$ | Hidden layers, zero-centered |
+| Softmax | $\frac{e^{z_j}}{\sum_i e^{z_i}}$ | Multi-class output |
 
 ---
 
 ## 9.3 Forward Pass
 
-For a network with L layers:
-```
-a⁽⁰⁾ = x                      (input layer)
-z⁽ˡ⁾ = W⁽ˡ⁾ · a⁽ˡ⁻¹⁾ + b⁽ˡ⁾  (pre-activation)
-a⁽ˡ⁾ = f(z⁽ˡ⁾)                (post-activation)
-ŷ = a⁽ᴸ⁾                      (output layer)
-```
+For a network with $L$ layers:
+
+$$\mathbf{a}^{(0)} = \mathbf{x} \quad \text{(input layer)}$$
+
+$$\mathbf{z}^{(l)} = \mathbf{W}^{(l)} \cdot \mathbf{a}^{(l-1)} + \mathbf{b}^{(l)} \quad \text{(pre-activation)}$$
+
+$$\mathbf{a}^{(l)} = f(\mathbf{z}^{(l)}) \quad \text{(post-activation)}$$
+
+$$\hat{\mathbf{y}} = \mathbf{a}^{(L)} \quad \text{(output layer)}$$
 
 ---
 
@@ -63,14 +66,14 @@ a⁽ˡ⁾ = f(z⁽ˡ⁾)                (post-activation)
 Backprop = **chain rule** of calculus applied to the computational graph.
 
 For each parameter, compute how the loss changes with respect to that parameter:
-```
-∂L/∂W⁽ˡ⁾ = ∂L/∂z⁽ˡ⁾ · (a⁽ˡ⁻¹⁾)ᵀ
-∂L/∂b⁽ˡ⁾ = ∂L/∂z⁽ˡ⁾
 
-δ⁽ˡ⁾ = ∂L/∂z⁽ˡ⁾ = (W⁽ˡ⁺¹⁾)ᵀ · δ⁽ˡ⁺¹⁾  ⊙  f'(z⁽ˡ⁾)
-```
+$$\frac{\partial L}{\partial \mathbf{W}^{(l)}} = \frac{\partial L}{\partial \mathbf{z}^{(l)}} \cdot (\mathbf{a}^{(l-1)})^\top$$
 
-Where `⊙` is element-wise multiplication and `f'` is the derivative of the activation.
+$$\frac{\partial L}{\partial \mathbf{b}^{(l)}} = \frac{\partial L}{\partial \mathbf{z}^{(l)}}$$
+
+$$\boldsymbol{\delta}^{(l)} = \frac{\partial L}{\partial \mathbf{z}^{(l)}} = (\mathbf{W}^{(l+1)})^\top \cdot \boldsymbol{\delta}^{(l+1)} \odot f'(\mathbf{z}^{(l)})$$
+
+Where $\odot$ is element-wise multiplication and $f'$ is the derivative of the activation.
 
 ---
 
@@ -255,9 +258,9 @@ if __name__ == "__main__":
 | Forward pass | Input → activations → output |
 | Loss function | Measures prediction error |
 | Backpropagation | Chain rule: compute gradients layer by layer |
-| Weight update | `W ← W - lr · ∂L/∂W` |
+| Weight update | $\mathbf{W} \leftarrow \mathbf{W} - \text{lr} \cdot \frac{\partial L}{\partial \mathbf{W}}$ |
 | Vanishing gradient | ReLU alleviates this vs sigmoid/tanh |
-| He initialization | Scale weights by √(2/n_in) for ReLU layers |
+| He initialization | Scale weights by $\sqrt{2/n_{\text{in}}}$ for ReLU layers |
 
 ---
 
@@ -265,10 +268,10 @@ if __name__ == "__main__":
 
 1. Add **L2 regularization** (weight decay) to the weight update.
 2. Implement **mini-batch gradient descent** (update after B samples, not 1).
-3. Add **momentum** to the optimizer: `v ← βv + (1-β)∂L/∂W; W ← W - lr·v`
+3. Add **momentum** to the optimizer: $\mathbf{v} \leftarrow \beta \mathbf{v} + (1-\beta)\frac{\partial L}{\partial \mathbf{W}}$; $\mathbf{W} \leftarrow \mathbf{W} - \text{lr} \cdot \mathbf{v}$
 4. Implement a **softmax output layer** for multiclass classification.
 
 ---
 
-**← Previous:** [Chapter 08: Ensemble Methods](chapter-08-ensemble-methods.qmd)  
+**← Previous:** [Chapter 08: Ensemble Methods](chapter-08-ensemble-methods.qmd)
 **→ Next:** [Chapter 10: Convolutional Neural Networks](chapter-10-cnn.qmd)

@@ -1,0 +1,409 @@
+---
+title: "Chapter 16: Convolutional Neural Networks — Advanced"
+subtitle: "Batch norm, residual connections, modern architectures, and object detection from scratch"
+date: last-modified
+categories: [advanced, deep-learning, computer-vision, cnn]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+jupyter: python3
+---
+
+# Chapter 16: CNNs — Advanced Architectures
+
+> **Level**: Advanced | **Estimated Time**: 6–8 hours | **Prerequisites**: Chapter 10 (CNNs), Chapter 09 (Neural Networks)
+
+---
+
+## 16.1 Intuition
+
+Chapter 10 covered the mechanics of convolution, pooling, and building a basic CNN. This chapter goes deeper:
+
+- **Batch Normalisation** — stabilise training, allow higher learning rates
+- **Residual (skip) connections** — train networks hundreds of layers deep
+- **Depthwise separable convolutions** — drastic parameter reduction
+- **Modern architectures** — LeNet → AlexNet → VGG → ResNet family
+- **Object detection** — sliding windows, anchor boxes, IoU, NMS
+
+---
+
+## 16.2 Batch Normalisation
+
+### Theory
+
+Training deep networks is unstable because the distribution of each layer's inputs shifts as parameters change — **internal covariate shift**.
+
+**Batch Norm** normalises each feature across the mini-batch, then applies learned scale $\gamma$ and shift $\beta$:
+
+$$\mu_B = \frac{1}{m} \sum_{i=1}^{m} x_i \quad \text{(batch mean)}$$
+
+$$\sigma^2_B = \frac{1}{m} \sum_{i=1}^{m} (x_i - \mu_B)^2 \quad \text{(batch variance)}$$
+
+$$\hat{x}_i = \frac{x_i - \mu_B}{\sqrt{\sigma^2_B + \varepsilon}}$$
+
+$$y_i = \gamma \hat{x}_i + \beta \quad \text{(learned scale and shift)}$$
+
+At inference, use running mean/variance accumulated during training.
+
+**Benefits**: higher learning rates, less sensitive to initialisation, slight regularisation effect.
+
+### From-Scratch Implementation
+
+```{python}
+import math, random
+
+class BatchNorm1D:
+    """Batch normalisation for 1D feature vectors."""
+
+    def __init__(self, num_features, eps=1e-5, momentum=0.1):
+        self.eps = eps
+        self.momentum = momentum
+        self.gamma = [1.0] * num_features   # scale
+        self.beta  = [0.0] * num_features   # shift
+        self.running_mean = [0.0] * num_features
+        self.running_var  = [1.0] * num_features
+        self.training = True
+
+    def forward(self, X):
+        """
+        X: list of m vectors, each of length num_features.
+        Returns normalised batch.
+        """
+        m = len(X)
+        n = len(X[0])
+
+        if self.training:
+            # Compute batch statistics
+            mean = [sum(X[i][j] for i in range(m)) / m for j in range(n)]
+            var  = [sum((X[i][j] - mean[j])**2 for i in range(m)) / m
+                    for j in range(n)]
+
+            # Update running stats
+            for j in range(n):
+                self.running_mean[j] = (1 - self.momentum) * self.running_mean[j] + \
+                                        self.momentum * mean[j]
+                self.running_var[j]  = (1 - self.momentum) * self.running_var[j]  + \
+                                        self.momentum * var[j]
+        else:
+            mean = self.running_mean
+            var  = self.running_var
+
+        # Normalise then scale/shift
+        out = []
+        for i in range(m):
+            row = [
+                self.gamma[j] * (X[i][j] - mean[j]) / math.sqrt(var[j] + self.eps) + self.beta[j]
+                for j in range(n)
+            ]
+            out.append(row)
+        return out
+
+# Quick sanity check
+bn = BatchNorm1D(3)
+batch = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
+normed = bn.forward(batch)
+print("Batch Norm output (should have ~0 mean, ~1 std per feature):")
+for col in range(3):
+    vals = [normed[i][col] for i in range(3)]
+    mean = sum(vals)/3
+    std  = math.sqrt(sum((v-mean)**2 for v in vals)/3)
+    print(f"  Feature {col}: mean={mean:.4f}, std={std:.4f}")
+```
+
+---
+
+## 16.3 Residual (Skip) Connections
+
+### The Vanishing Gradient Problem in Deep CNNs
+
+In a 50-layer network, gradients must pass through 50 successive multiplications. Even gradients slightly less than 1 vanish exponentially.
+
+### ResNet's Insight
+
+Instead of learning a mapping $\mathbf{F}(\mathbf{x})$, learn the **residual** $\mathbf{H}(\mathbf{x}) - \mathbf{x}$:
+
+$$\mathbf{H}(\mathbf{x}) = \mathbf{F}(\mathbf{x}) + \mathbf{x} \quad \leftarrow \text{add the input directly to the output}$$
+
+If the optimal transform is close to identity, it's much easier to learn $\mathbf{F}(\mathbf{x}) \to 0$ than to learn $\mathbf{F}(\mathbf{x}) \to \mathbf{x}$ from scratch.
+
+Crucially, gradients can flow backward through the **skip connection** (the $+ \mathbf{x}$ path) without passing through any learned weights → no vanishing gradient on that path.
+
+```
+Input x
+   │
+   ├──────────────┐  (skip / identity shortcut)
+   │              │
+  Conv 3×3       │
+  BatchNorm       │
+  ReLU            │
+  Conv 3×3       │
+  BatchNorm       │
+   │              │
+   └──────── + ──┘
+             │
+            ReLU
+             │
+           Output
+```
+
+### From-Scratch Residual Block
+
+```{python}
+def relu(x):
+    return max(0.0, x)
+
+def relu_v(v):
+    return [relu(x) for x in v]
+
+def mat_vec(W, x):
+    return [sum(W[i][j]*x[j] for j in range(len(x))) for i in range(len(W))]
+
+def vec_add(a, b):
+    return [x + y for x, y in zip(a, b)]
+
+def xavier(rows, cols, seed=0):
+    rng = random.Random(seed)
+    limit = math.sqrt(6.0 / (rows + cols))
+    return [[rng.uniform(-limit, limit) for _ in range(cols)] for _ in range(rows)]
+
+class ResidualBlock:
+    """
+    Simplified 1D residual block (FC layers instead of conv for clarity).
+    In a real CNN, replace FC layers with 3×3 Conv + BatchNorm.
+    """
+    def __init__(self, dim, seed=0):
+        self.W1 = xavier(dim, dim, seed)
+        self.b1 = [0.0] * dim
+        self.W2 = xavier(dim, dim, seed+1)
+        self.b2 = [0.0] * dim
+        self.bn1 = BatchNorm1D(dim)
+        self.bn2 = BatchNorm1D(dim)
+
+    def forward(self, x):
+        # First conv-like layer
+        out = vec_add(mat_vec(self.W1, x), self.b1)
+        out = self.bn1.forward([out])[0]
+        out = relu_v(out)
+
+        # Second conv-like layer (no activation yet)
+        out = vec_add(mat_vec(self.W2, out), self.b2)
+        out = self.bn2.forward([out])[0]
+
+        # Skip connection: add input
+        out = vec_add(out, x)
+
+        # Final activation
+        return relu_v(out)
+
+# Demo: show residual block preserves information
+block = ResidualBlock(dim=4, seed=42)
+x = [1.0, -0.5, 2.0, 0.3]
+out = block.forward(x)
+print(f"\nResidual Block demo:")
+print(f"  Input:  {[round(v,3) for v in x]}")
+print(f"  Output: {[round(v,3) for v in out]}")
+print(f"  The skip connection ensures output ≈ input when weights are near 0.")
+```
+
+---
+
+## 16.4 Depthwise Separable Convolution
+
+A standard 3×3 convolution on a C-channel input to produce C' channels costs:
+
+$$\text{Params} = 3 \times 3 \times C \times C'$$
+
+$$\text{FLOPs} = 3 \times 3 \times C \times C' \times H \times W$$
+
+**Depthwise separable convolution** splits this into two steps:
+
+1. **Depthwise conv**: apply one 3×3 filter per input channel → $C$ feature maps
+2. **Pointwise conv**: apply $C'$ separate 1×1 filters across all channels
+
+$$\text{Cost ratio} = \frac{3 \times 3 + C'}{3 \times 3 \times C'} \approx \frac{1}{9} \quad (8\text{–}9\times \text{ cheaper})$$
+
+Used in MobileNet, EfficientNet, Xception.
+
+| | Params |
+|---|---|
+| Standard | $9 \cdot C \cdot C'$ |
+| Depthwise | $9 \cdot C$ |
+| Pointwise | $C \cdot C'$ |
+| Total depthwise separable | $C(9 + C')$ vs $9CC'$ → ~$9\times$ fewer params |
+
+---
+
+## 16.5 Architecture Evolution
+
+| Model | Year | Innovation | Top-5 Error |
+|-------|------|-----------|-------------|
+| LeNet-5 | 1998 | First CNN for digits | — |
+| AlexNet | 2012 | Deep CNN, ReLU, dropout | 15.3% |
+| VGG-16 | 2014 | Only 3×3 convs, very deep | 7.3% |
+| GoogLeNet | 2014 | Inception modules, 1×1 conv | 6.7% |
+| ResNet-50 | 2015 | Skip connections, 50 layers | 3.6% |
+| DenseNet | 2017 | All-to-all skip connections | 3.5% |
+| MobileNetV2 | 2018 | Depthwise separable | ~4.0% |
+| EfficientNet | 2019 | Compound scaling | 2.9% |
+
+---
+
+## 16.6 Object Detection Concepts
+
+### 16.6.1 Intersection over Union (IoU)
+
+Measures overlap between a predicted bounding box and ground-truth box:
+
+$$\text{IoU} = \frac{\text{Area}(\text{Predicted} \cap \text{Ground Truth})}{\text{Area}(\text{Predicted} \cup \text{Ground Truth})}$$
+
+A prediction is a true positive if $\text{IoU} > \text{threshold}$ (typically 0.5).
+
+### 16.6.2 Non-Maximum Suppression (NMS)
+
+When a detector fires multiple times on the same object, NMS keeps only the highest-confidence box:
+
+```
+1. Sort all predicted boxes by confidence score (descending)
+2. Pick the top box, add to output
+3. Remove all boxes with IoU > threshold vs the picked box
+4. Repeat until no boxes remain
+```
+
+### 16.6.3 From-Scratch IoU and NMS
+
+```{python}
+def compute_iou(box_a, box_b):
+    """
+    Boxes as (x1, y1, x2, y2) — top-left and bottom-right corners.
+    """
+    x1 = max(box_a[0], box_b[0])
+    y1 = max(box_a[1], box_b[1])
+    x2 = min(box_a[2], box_b[2])
+    y2 = min(box_a[3], box_b[3])
+
+    inter_w = max(0.0, x2 - x1)
+    inter_h = max(0.0, y2 - y1)
+    intersection = inter_w * inter_h
+
+    area_a = (box_a[2]-box_a[0]) * (box_a[3]-box_a[1])
+    area_b = (box_b[2]-box_b[0]) * (box_b[3]-box_b[1])
+    union = area_a + area_b - intersection
+
+    return intersection / union if union > 0 else 0.0
+
+def non_max_suppression(boxes, scores, iou_threshold=0.5):
+    """
+    boxes:  list of (x1,y1,x2,y2)
+    scores: list of confidence scores (same length)
+    Returns: indices of kept boxes
+    """
+    order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    kept = []
+
+    while order:
+        best = order.pop(0)
+        kept.append(best)
+        order = [
+            i for i in order
+            if compute_iou(boxes[best], boxes[i]) < iou_threshold
+        ]
+
+    return kept
+
+# Demo
+boxes = [
+    (10, 10, 50, 50),
+    (12, 12, 52, 52),   # heavily overlaps box 0
+    (100, 100, 150, 150),
+]
+scores = [0.9, 0.75, 0.85]
+
+kept = non_max_suppression(boxes, scores, iou_threshold=0.5)
+print(f"\nNMS Demo:")
+print(f"  Input boxes:  {len(boxes)}")
+print(f"  Kept indices: {kept}")
+print(f"  Kept boxes:   {[boxes[i] for i in kept]}")
+print(f"  (Box 1 suppressed because IoU={compute_iou(boxes[0],boxes[1]):.2f} with box 0)")
+
+# IoU demo
+iou = compute_iou((0,0,10,10), (5,5,15,15))
+print(f"\nIoU of 50% overlapping boxes: {iou:.3f}")
+```
+
+---
+
+## 16.7 Data Augmentation
+
+A powerful regularisation technique: apply random transforms to training images to artificially increase dataset size and diversity.
+
+Common augmentations:
+- Horizontal flip
+- Random crop (crop then resize)
+- Colour jitter (brightness, contrast, saturation)
+- Random rotation (±15°)
+- Gaussian noise
+- Cutout / random erasing
+
+```{python}
+import random as _r
+
+def augment_image(image, width, height, seed=None):
+    """
+    Toy augmentation on a flat pixel list (width*height values in [0,1]).
+    Returns augmented image.
+    """
+    rng = _r.Random(seed)
+
+    # Random horizontal flip
+    if rng.random() < 0.5:
+        rows = [image[r*width:(r+1)*width] for r in range(height)]
+        image = [px for row in rows for px in reversed(row)]
+
+    # Random brightness jitter
+    delta = rng.uniform(-0.2, 0.2)
+    image = [min(1.0, max(0.0, p + delta)) for p in image]
+
+    # Random Gaussian noise
+    sigma = 0.05
+    image = [min(1.0, max(0.0, p + rng.gauss(0, sigma))) for p in image]
+
+    return image
+
+# Demo with a 4×4 checkerboard
+img = [(1.0 if (r+c)%2==0 else 0.0) for r in range(4) for c in range(4)]
+aug = augment_image(img, 4, 4, seed=7)
+print(f"\nAugmentation demo (4×4 image):")
+print(f"  Original first row: {[round(v,2) for v in img[:4]]}")
+print(f"  Augmented first row: {[round(v,2) for v in aug[:4]]}")
+```
+
+---
+
+## 16.8 Exercises
+
+1. Implement a 2D BatchNorm layer for feature maps of shape (C, H, W).
+2. Build a toy ResNet with 3 residual blocks using the `ResidualBlock` class and train it on XOR-like data.
+3. Compute the parameter count for MobileNet's first 5 layers and compare to VGG's first 5.
+4. Implement Mean Average Precision (mAP) from scratch using IoU thresholds.
+5. Add random rotation (±15°) to the `augment_image` function using bilinear interpolation.
+
+---
+
+## ✅ Summary
+
+| Concept | Key Idea |
+|---------|---------|
+| Batch normalisation | Normalise each feature across mini-batch → stable training |
+| Skip connections | Gradient highway bypassing layers → very deep networks |
+| Depthwise separable conv | ~9× fewer parameters, comparable accuracy |
+| IoU | Overlap metric for bounding box quality |
+| NMS | Remove duplicate detections keeping only best |
+| Data augmentation | Random transforms → implicit regularisation |
+
+---
+
+**← Previous:** [Chapter 15: LSTM](chapter-15-lstm.qmd)
+**→ Next:** [Chapter 17: Graph Neural Networks](chapter-17-gnn.qmd)
+**← Back to Start:** [Home](../index.qmd)

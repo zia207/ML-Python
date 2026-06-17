@@ -1,6 +1,6 @@
 ---
 title: "Machine Learning in Python"
-subtitle: "From Beginner to Advanced — All Algorithms Implemented From Scratch"
+subtitle: "From Beginner to Advanced: From Scratch"
 page-layout: full
 toc: false
 ---
@@ -11,7 +11,7 @@ toc: false
 **A comprehensive tutorial series covering theory, mathematics, and pure-Python implementation of every major ML algorithm — no scikit-learn, no TensorFlow.**
 
 ::: {.badge-row}
-[🟢 Beginner]{.badge-beginner} [🟡 Intermediate]{.badge-intermediate} [🔴 Advanced]{.badge-advanced} [16 Chapters]{.badge-all} [Pure Python]{.badge-all}
+[🟢 Beginner]{.badge-beginner} [🟡 Intermediate]{.badge-intermediate} [🔴 Advanced]{.badge-advanced} [21 Chapters]{.badge-all} [Pure Python]{.badge-all}
 :::
 :::
 
@@ -124,9 +124,9 @@ Each chapter follows a consistent structure:
 ::: {.chapter-card}
 [Chapter 08]{.card-number}
 [Ensemble Methods]{.card-title}
-[Bagging, Random Forest, AdaBoost — combining weak learners into a powerful ensemble.]{.card-desc}
+[Bagging, Random Forest, Extra Trees, AdaBoost, Gradient Boosting, and XGBoost — classification and regression from scratch with full theory and benchmarks.]{.card-desc}
 ::: {.card-footer}
-[🟡 Intermediate]{.badge-intermediate} · 4–5 hrs
+[🟡 Intermediate]{.badge-intermediate} · 6–8 hrs
 :::
 [→ Read Chapter](chapters/chapter-08-ensemble-methods.qmd)
 :::
@@ -199,6 +199,56 @@ Each chapter follows a consistent structure:
 [→ Read Chapter](chapters/chapter-14-reinforcement-learning.qmd)
 :::
 
+::: {.chapter-card}
+[Chapter 15]{.card-number}
+[Long Short-Term Memory (LSTM)]{.card-title}
+[Gates (forget/input/output), cell state highway, reparameterised gradients, GRU comparison, character-level language model.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 6–8 hrs
+:::
+[→ Read Chapter](chapters/chapter-15-lstm.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 16]{.card-number}
+[CNNs — Advanced Architectures]{.card-title}
+[Batch normalisation, residual (skip) connections, depthwise separable conv, IoU, non-maximum suppression, data augmentation.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 6–8 hrs
+:::
+[→ Read Chapter](chapters/chapter-16-cnn-advanced.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 17]{.card-number}
+[Graph Neural Networks]{.card-title}
+[Message passing, GCN spectral convolution, GraphSAGE, link prediction, graph pooling, node classification.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 6–8 hrs
+:::
+[→ Read Chapter](chapters/chapter-17-gnn.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 18]{.card-number}
+[Natural Language Processing]{.card-title}
+[Tokenisation, BPE, TF-IDF, Word2Vec skip-gram, scaled dot-product attention, positional encoding, Transformer encoder.]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 8–10 hrs
+:::
+[→ Read Chapter](chapters/chapter-18-nlp.qmd)
+:::
+
+::: {.chapter-card}
+[Chapter 19]{.card-number}
+[Generative Models]{.card-title}
+[VAE (ELBO, reparameterisation trick), GAN (min-max game, mode collapse), diffusion models (forward/reverse process).]{.card-desc}
+::: {.card-footer}
+[🔴 Advanced]{.badge-advanced} · 8–10 hrs
+:::
+[→ Read Chapter](chapters/chapter-19-generative-models.qmd)
+:::
+
 :::
 
 ---
@@ -208,13 +258,13 @@ Each chapter follows a consistent structure:
 ::: {.chapter-grid}
 
 ::: {.chapter-card}
-[Chapter 15]{.card-number}
+[Chapter 20]{.card-number}
 [Model Evaluation & Best Practices]{.card-title}
 [Cross-validation, confusion matrix, ROC-AUC, regression metrics, overfitting/regularization, learning curves.]{.card-desc}
 ::: {.card-footer}
 [🔵 All Levels]{.badge-all} · 3–4 hrs
 :::
-[→ Read Chapter](chapters/chapter-15-model-evaluation.qmd)
+[→ Read Chapter](chapters/chapter-20-model-evaluation.qmd)
 :::
 
 :::
@@ -236,6 +286,8 @@ This forces you to truly understand what each algorithm is doing, not just call 
 
 | Path | Chapters | Who it's for |
 |------|----------|-------------|
-| 🟢 **Beginner** | 00 → 01 → 02 → 03 → 04 → 05 → 15 | New to ML |
-| 🟡 **Intermediate** | 00–05 → 06 → 07 → 08 → 12 → 13 → 15 | Comfortable with Python |
-| 🔴 **Full Course** | 00 → 15 in order | Complete mastery |
+| 🟢 **Beginner** | 00 → 01 → 02 → 03 → 04 → 05 → 20 | New to ML |
+| 🟡 **Intermediate** | 00–05 → 06 → 07 → 08 → 12 → 13 → 20 | Comfortable with Python |
+| 🔴 **Deep Learning** | 09 → 10 → 11 → 14 → 15 → 16 → 20 | Neural network focus |
+| 🔴 **Modern AI** | 15 → 16 → 17 → 18 → 19 → 20 | LSTM, GNNs, NLP, Generative |
+| 🔴 **Full Course** | 00 → 20 in order | Complete mastery |

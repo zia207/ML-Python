@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 14: Reinforcement Learning Basics
@@ -34,18 +35,18 @@ The agent learns a **policy** (mapping from states to actions) that maximizes cu
 
 | Term | Meaning |
 |------|---------|
-| **State (s)** | Current situation of the agent |
-| **Action (a)** | Choice the agent makes |
-| **Reward (r)** | Immediate feedback signal |
-| **Policy (π)** | Agent's strategy: π(s) → a |
+| **State ($s$)** | Current situation of the agent |
+| **Action ($a$)** | Choice the agent makes |
+| **Reward ($r$)** | Immediate feedback signal |
+| **Policy ($\pi$)** | Agent's strategy: $\pi(s) \to a$ |
 | **Episode** | One complete run (start to terminal state) |
-| **Return (G)** | Total discounted reward from step t: Gₜ = rₜ + γrₜ₊₁ + γ²rₜ₊₂ + ... |
-| **Value V(s)** | Expected return starting from state s |
-| **Q-value Q(s,a)** | Expected return taking action a in state s |
+| **Return ($G$)** | Total discounted reward from step $t$: $G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots$ |
+| **Value $V(s)$** | Expected return starting from state $s$ |
+| **Q-value $Q(s,a)$** | Expected return taking action $a$ in state $s$ |
 
-**Discount factor γ** ∈ [0,1]: how much future rewards matter.  
-- γ=0: myopic (only immediate reward)  
-- γ=1: infinite horizon (values future equally)
+**Discount factor** $\gamma \in [0,1]$: how much future rewards matter.
+- $\gamma=0$: myopic (only immediate reward)
+- $\gamma=1$: infinite horizon (values future equally)
 
 ---
 
@@ -53,9 +54,7 @@ The agent learns a **policy** (mapping from states to actions) that maximizes cu
 
 The Q-value satisfies the recursive Bellman equation:
 
-```
-Q*(s, a) = E[r + γ · max_{a'} Q*(s', a')]
-```
+$$Q^*(s, a) = \mathbb{E}\!\left[r + \gamma \cdot \max_{a'} Q^*(s', a')\right]$$
 
 This is the foundation of Q-learning.
 
@@ -65,18 +64,16 @@ This is the foundation of Q-learning.
 
 Q-learning learns the optimal Q-function directly (model-free, off-policy):
 
-```
-Q(s, a) ← Q(s, a) + α · [r + γ · max_{a'} Q(s', a') - Q(s, a)]
-```
+$$Q(s, a) \leftarrow Q(s, a) + \alpha \cdot \left[r + \gamma \cdot \max_{a'} Q(s', a') - Q(s, a)\right]$$
 
 Where:
-- `α` = learning rate
-- `r + γ · max Q(s', a')` = TD target (Temporal Difference)
-- `r + γ · max Q(s', a') - Q(s, a)` = TD error
+- $\alpha$ = learning rate
+- $r + \gamma \cdot \max_{a'} Q(s', a')$ = TD target (Temporal Difference)
+- $r + \gamma \cdot \max_{a'} Q(s', a') - Q(s, a)$ = TD error
 
-**Exploration vs Exploitation**: ε-greedy policy:
-- With probability ε: explore (random action)
-- With probability 1-ε: exploit (best known action)
+**Exploration vs Exploitation**: $\varepsilon$-greedy policy:
+- With probability $\varepsilon$: explore (random action)
+- With probability $1-\varepsilon$: exploit (best known action)
 
 ---
 
@@ -161,7 +158,7 @@ class QLearningAgent:
         return self.Q.get((state, action), 0.0)
 
     def choose_action(self, state):
-        """ε-greedy policy."""
+        """epsilon-greedy policy."""
         if random.random() < self.epsilon:
             return random.randint(0, self.n_actions - 1)
         else:
@@ -274,9 +271,9 @@ if __name__ == "__main__":
 1. What is the difference between on-policy (SARSA) and off-policy (Q-Learning)?
 2. Implement **SARSA** — the update rule uses the actual next action instead of max.
 3. Why does Q-Learning need experience replay and target networks in the DQN setting?
-4. What happens if γ=1 in an infinite-horizon task?
+4. What happens if $\gamma=1$ in an infinite-horizon task?
 
 ---
 
-**← Previous:** [Chapter 13: PCA](chapter-13-pca.qmd)  
-**→ Next:** [Chapter 15: Model Evaluation & Best Practices](chapter-15-model-evaluation.qmd)
+**← Previous:** [Chapter 13: PCA](chapter-13-pca.qmd)
+**→ Next:** [Chapter 15: Model Evaluation & Best Practices](chapter-15-lstm.qmd)

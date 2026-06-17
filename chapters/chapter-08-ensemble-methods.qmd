@@ -1,252 +1,183 @@
 ---
 title: "Chapter 08: Ensemble Methods"
-subtitle: "Bagging, boosting, random forests, and AdaBoost from scratch"
+subtitle: "Bagging, boosting, Random Forest, Extra Trees, Gradient Boosting, and XGBoost — classification and regression from scratch"
 date: last-modified
-categories: [intermediate, ensemble, boosting, bagging]
+categories: [intermediate, ensemble, boosting, bagging, random-forest, gradient-boosting]
 toc: true
 toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 08: Ensemble Methods
 
-> **Level**: Intermediate | **Estimated Time**: 4–5 hours
+> **Level**: Intermediate | **Estimated Time**: 6–8 hours | **Prerequisites**: Chapter 06 (Decision Trees)
 
 ---
 
 ## 8.1 Intuition
 
-> "The wisdom of the crowd" — combining many weak models produces a strong one.
+> *"No single expert knows everything — but a committee of experts usually beats any individual."*
 
-Three main strategies:
-1. **Bagging** — train many models on random subsets, average their outputs
-2. **Boosting** — train models sequentially, each correcting the previous
-3. **Stacking** — train a meta-model to combine predictions of base models
+An **ensemble** combines multiple models (called **base learners** or **weak learners**) to produce a prediction that is more accurate and more stable than any single model alone.
 
----
+Three core strategies:
 
-## 8.2 Bagging & Random Forest
+| Strategy | How | Key Effect |
+|----------|-----|-----------|
+| **Bagging** | Train in parallel on bootstrap samples, then aggregate | Reduces variance |
+| **Boosting** | Train sequentially, each model corrects previous errors | Reduces bias |
+| **Stacking** | Train a meta-model to combine base-model predictions | Reduces both |
 
-### Bootstrap Aggregating (Bagging)
-1. Create B bootstrap samples (sample n points **with replacement**)
-2. Train one model per bootstrap sample
-3. Aggregate predictions (vote for classification, mean for regression)
-
-**Variance reduction**: Each model has high variance but they are de-correlated → average reduces variance without increasing bias.
-
-### Random Forest
-Random Forest = Bagging + **random feature subsets** at each split.
-
-At each split, instead of searching all p features, randomly select √p features.
-This further de-correlates the trees.
+This chapter implements **every major ensemble algorithm from scratch** — for both **classification** and **regression**.
 
 ---
 
-## 8.3 Boosting & AdaBoost
-
-### Intuition
-Boosting builds an ensemble **sequentially**. Each new model focuses on samples the previous ones got wrong.
-
-### AdaBoost Algorithm
-1. Initialize sample weights: wᵢ = 1/n
-2. For t = 1 to T:
-   a. Train weak learner hₜ on weighted data
-   b. Compute error: εₜ = Σᵢ wᵢ · 𝟙[hₜ(xᵢ) ≠ yᵢ]
-   c. Compute learner weight: αₜ = 0.5 · ln((1-εₜ)/εₜ)
-   d. Update sample weights: wᵢ ← wᵢ · exp(-αₜ yᵢ hₜ(xᵢ))
-   e. Normalize weights so they sum to 1
-3. Final prediction: H(x) = sign(Σₜ αₜ hₜ(x))
-
----
-
-## 8.4 From-Scratch Python Implementation
+## 8.2 Shared Building Blocks
 
 ```{python}
-# ensemble.py
-import math, random
+import math
+import random
 from collections import Counter
 
-# ── We reuse DecisionTreeClassifier from Chapter 06 ──────────────────────
-# (abbreviated here for brevity — use the full version from chapter-06)
+# ── Impurity / loss functions ─────────────────────────────────────────────
 
 def gini(y):
+    """Gini impurity for classification."""
     n = len(y)
-    if n == 0: return 0.0
+    if n == 0:
+        return 0.0
     counts = Counter(y)
-    return 1.0 - sum((c/n)**2 for c in counts.values())
+    return 1.0 - sum((c / n) ** 2 for c in counts.values())
 
-class SimpleStump:
-    """Depth-1 decision tree (decision stump) for use in AdaBoost."""
-    def __init__(self):
-        self.feature_idx = None
-        self.threshold = None
-        self.polarity = 1
-        self.alpha = None
+def mse(y):
+    """Mean squared error (variance) for regression splits."""
+    if len(y) == 0:
+        return 0.0
+    mean = sum(y) / len(y)
+    return sum((v - mean) ** 2 for v in y) / len(y)
 
-    def fit(self, X, y, weights):
-        n, n_features = len(X), len(X[0])
-        best_error = math.inf
-        for feat in range(n_features):
-            values = sorted(set(row[feat] for row in X))
-            thresholds = [(values[i]+values[i+1])/2 for i in range(len(values)-1)]
-            for thr in thresholds:
-                for polarity in [1, -1]:
-                    preds = [polarity if X[i][feat] <= thr else -polarity for i in range(n)]
-                    error = sum(weights[i] for i in range(n) if preds[i] != y[i])
-                    if error < best_error:
-                        best_error = error
-                        self.feature_idx = feat
-                        self.threshold = thr
-                        self.polarity = polarity
-        return best_error
+def mean(y):
+    return sum(y) / len(y) if y else 0.0
 
-    def predict(self, X):
-        return [self.polarity if xi[self.feature_idx] <= self.threshold else -self.polarity
-                for xi in X]
+def mode(y):
+    return Counter(y).most_common(1)[0][0]
 
-
-class AdaBoostClassifier:
-    """AdaBoost with decision stumps as weak learners."""
-
-    def __init__(self, n_estimators=50):
-        self.n_estimators = n_estimators
-        self.stumps = []
-
-    def fit(self, X, y):
-        n = len(y)
-        weights = [1.0/n] * n
-
-        for _ in range(self.n_estimators):
-            stump = SimpleStump()
-            error = stump.fit(X, y, weights)
-
-            # Avoid division by zero
-            error = max(error, 1e-10)
-            error = min(error, 1 - 1e-10)
-
-            # Learner weight
-            alpha = 0.5 * math.log((1 - error) / error)
-            stump.alpha = alpha
-
-            # Update sample weights
-            preds = stump.predict(X)
-            new_weights = [
-                weights[i] * math.exp(-alpha * y[i] * preds[i])
-                for i in range(n)
-            ]
-            total = sum(new_weights)
-            weights = [w/total for w in new_weights]
-            self.stumps.append(stump)
-
-        return self
-
-    def predict(self, X):
-        scores = [0.0] * len(X)
-        for stump in self.stumps:
-            preds = stump.predict(X)
-            for i, p in enumerate(preds):
-                scores[i] += stump.alpha * p
-        return [1 if s >= 0 else -1 for s in scores]
-
-
-# ── Random Forest ─────────────────────────────────────────────────────────
+# ── Bootstrap sampling ────────────────────────────────────────────────────
 
 def bootstrap_sample(X, y, seed=None):
-    """Sample n points with replacement."""
-    if seed: random.seed(seed)
+    """Sample n rows with replacement."""
+    rng = random.Random(seed)
     n = len(X)
-    indices = [random.randint(0, n-1) for _ in range(n)]
-    return [X[i] for i in indices], [y[i] for i in indices]
+    idx = [rng.randint(0, n - 1) for _ in range(n)]
+    return [X[i] for i in idx], [y[i] for i in idx]
 
-class RandomForestClassifier:
-    """Random Forest: Bagging + random feature subsets."""
+# ── Evaluation helpers ────────────────────────────────────────────────────
 
-    def __init__(self, n_estimators=10, max_depth=5, max_features='sqrt',
-                 min_samples_split=2):
-        self.n_estimators = n_estimators
-        self.max_depth = max_depth
-        self.max_features = max_features
-        self.min_samples_split = min_samples_split
-        self.trees = []
-        self.feature_subsets = []
+def accuracy(y_true, y_pred):
+    return sum(a == b for a, b in zip(y_true, y_pred)) / len(y_true)
 
-    def _get_n_features(self, n_total):
-        if self.max_features == 'sqrt':
-            return max(1, int(math.sqrt(n_total)))
-        if self.max_features == 'log2':
-            return max(1, int(math.log2(n_total)))
-        return n_total
+def rmse(y_true, y_pred):
+    return math.sqrt(sum((a - b) ** 2 for a, b in zip(y_true, y_pred)) / len(y_true))
 
-    def fit(self, X, y):
-        n_total_features = len(X[0])
-        n_select = self._get_n_features(n_total_features)
+def r2(y_true, y_pred):
+    m = mean(y_true)
+    ss_tot = sum((v - m) ** 2 for v in y_true)
+    ss_res = sum((a - b) ** 2 for a, b in zip(y_true, y_pred))
+    return 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+```
 
-        for t in range(self.n_estimators):
-            X_boot, y_boot = bootstrap_sample(X, y, seed=t)
+---
 
-            # Random feature subset
-            feat_idx = sorted(random.sample(range(n_total_features), n_select))
-            X_sub = [[row[j] for j in feat_idx] for row in X_boot]
+## 8.3 Base Decision Tree (Classification + Regression)
 
-            # Train a simple depth-limited tree (reuse logic from ch06)
-            # For brevity, use a simple decision tree class
-            tree = _SimpleDecisionTree(max_depth=self.max_depth,
-                                        min_samples_split=self.min_samples_split)
-            tree.fit(X_sub, y_boot)
-            self.trees.append(tree)
-            self.feature_subsets.append(feat_idx)
+A shared tree that handles both tasks, controlled by the `task` parameter.
 
-        return self
+```{python}
+class DecisionTree:
+    """
+    Minimal CART decision tree.
+    task='classification': splits on Gini, leaf = majority class
+    task='regression':     splits on MSE,  leaf = mean value
+    """
 
-    def predict(self, X):
-        # Collect votes from all trees
-        all_preds = []
-        for tree, feat_idx in zip(self.trees, self.feature_subsets):
-            X_sub = [[row[j] for j in feat_idx] for row in X]
-            all_preds.append(tree.predict(X_sub))
-
-        # Majority vote
-        final = []
-        for i in range(len(X)):
-            votes = [all_preds[t][i] for t in range(self.n_estimators)]
-            final.append(Counter(votes).most_common(1)[0][0])
-        return final
-
-
-class _SimpleDecisionTree:
-    """Minimal decision tree for use inside RandomForest."""
-
-    def __init__(self, max_depth=5, min_samples_split=2):
+    def __init__(self, max_depth=5, min_samples_split=2, max_features=None,
+                 task='classification', seed=0):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
+        self.max_features = max_features   # None → use all
+        self.task = task
+        self.seed = seed
+        self.rng = random.Random(seed)
         self.tree = None
+
+    # ── Impurity ─────────────────────────────────────────────────────────
+
+    def _impurity(self, y):
+        return gini(y) if self.task == 'classification' else mse(y)
+
+    def _leaf_value(self, y):
+        return mode(y) if self.task == 'classification' else mean(y)
+
+    # ── Split search ──────────────────────────────────────────────────────
+
+    def _best_split(self, X, y):
+        n, n_feats = len(X), len(X[0])
+        imp_parent = self._impurity(y)
+
+        # Feature subsampling (for Random Forest / Extra Trees)
+        if self.max_features is not None and self.max_features < n_feats:
+            feat_ids = self.rng.sample(range(n_feats), self.max_features)
+        else:
+            feat_ids = list(range(n_feats))
+
+        best = {'gain': -1, 'feat': None, 'thr': None}
+
+        for feat in feat_ids:
+            vals = sorted(set(row[feat] for row in X))
+            thresholds = [(vals[i] + vals[i + 1]) / 2 for i in range(len(vals) - 1)]
+            for thr in thresholds:
+                yl = [y[i] for i in range(n) if X[i][feat] <= thr]
+                yr = [y[i] for i in range(n) if X[i][feat] >  thr]
+                if not yl or not yr:
+                    continue
+                gain = (imp_parent
+                        - (len(yl) / n) * self._impurity(yl)
+                        - (len(yr) / n) * self._impurity(yr))
+                if gain > best['gain']:
+                    best = {'gain': gain, 'feat': feat, 'thr': thr}
+        return best
+
+    # ── Build ─────────────────────────────────────────────────────────────
+
+    def _build(self, X, y, depth):
+        # Stopping criteria
+        if (len(set(y)) == 1
+                or len(y) < self.min_samples_split
+                or depth >= self.max_depth):
+            return self._leaf_value(y)
+
+        split = self._best_split(X, y)
+        if split['feat'] is None:
+            return self._leaf_value(y)
+
+        f, thr = split['feat'], split['thr']
+        li = [i for i in range(len(X)) if X[i][f] <= thr]
+        ri = [i for i in range(len(X)) if X[i][f] >  thr]
+
+        return {
+            'feat': f, 'thr': thr,
+            'left':  self._build([X[i] for i in li], [y[i] for i in li], depth + 1),
+            'right': self._build([X[i] for i in ri], [y[i] for i in ri], depth + 1),
+        }
 
     def fit(self, X, y):
         self.tree = self._build(X, y, 0)
+        return self
 
-    def _build(self, X, y, depth):
-        if (len(set(y)) == 1 or len(y) < self.min_samples_split
-                or depth >= self.max_depth):
-            return Counter(y).most_common(1)[0][0]
-        best_gain, best_feat, best_thr = -1, None, None
-        for feat in range(len(X[0])):
-            vals = sorted(set(row[feat] for row in X))
-            for thr in [(vals[i]+vals[i+1])/2 for i in range(len(vals)-1)]:
-                yl = [y[i] for i in range(len(X)) if X[i][feat] <= thr]
-                yr = [y[i] for i in range(len(X)) if X[i][feat] >  thr]
-                if not yl or not yr: continue
-                gain = gini(y) - (len(yl)/len(y))*gini(yl) - (len(yr)/len(y))*gini(yr)
-                if gain > best_gain:
-                    best_gain, best_feat, best_thr = gain, feat, thr
-        if best_feat is None:
-            return Counter(y).most_common(1)[0][0]
-        li = [i for i in range(len(X)) if X[i][best_feat] <= best_thr]
-        ri = [i for i in range(len(X)) if X[i][best_feat] >  best_thr]
-        return {'feat': best_feat, 'thr': best_thr,
-                'left': self._build([X[i] for i in li], [y[i] for i in li], depth+1),
-                'right': self._build([X[i] for i in ri], [y[i] for i in ri], depth+1)}
+    # ── Predict ───────────────────────────────────────────────────────────
 
     def _traverse(self, x, node):
         if not isinstance(node, dict):
@@ -257,45 +188,1222 @@ class _SimpleDecisionTree:
     def predict(self, X):
         return [self._traverse(xi, self.tree) for xi in X]
 
-
-# ── Demo ──────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    X = [[2,3],[3,4],[1,2],[4,5],[0,1],[5,6],[2,1],[3,2],[4,1],[1,4]]
-    y = [1, 1, 0, 1, 0, 1, 0, 0, 1, 0]
-
-    print("=== AdaBoost ===")
-    ada = AdaBoostClassifier(n_estimators=20)
-    ada.fit(X, [2*yi-1 for yi in y])  # convert 0/1 → -1/+1
-    ada_preds = [(p+1)//2 for p in ada.predict(X)]
-    print(f"Train accuracy: {sum(yp==yt for yp,yt in zip(ada_preds,y))/len(y):.2f}")
-
-    print("\n=== Random Forest ===")
-    rf = RandomForestClassifier(n_estimators=10, max_depth=3)
-    rf.fit(X, y)
-    rf_preds = rf.predict(X)
-    print(f"Train accuracy: {sum(yp==yt for yp,yt in zip(rf_preds,y))/len(y):.2f}")
+    def predict_one(self, x):
+        return self._traverse(x, self.tree)
 ```
 
 ---
 
-## 8.5 Comparison Table
+## 8.4 Bagging
 
-| Method | Bias | Variance | Training | Interpretability |
-|--------|------|----------|----------|-----------------|
-| Single Tree | Low | High | Fast | High |
-| Bagging | Low | Lower | Medium | Low |
-| Random Forest | Low | Low | Medium | Low |
-| AdaBoost | Lower | Low | Slower | Very Low |
+### Theory
+
+**Bootstrap Aggregating (Bagging):**
+
+1. Draw $B$ bootstrap samples $\mathcal{D}_b$ (sample $n$ rows with replacement)
+2. Train one model $f_b$ on each $\mathcal{D}_b$
+3. Aggregate:
+
+$$\hat{y}_{\text{bag}}(\mathbf{x}) = \begin{cases} \text{majority vote}\!\left(\{f_b(\mathbf{x})\}_{b=1}^B\right) & \text{classification} \\ \dfrac{1}{B}\sum_{b=1}^B f_b(\mathbf{x}) & \text{regression} \end{cases}$$
+
+**Why it works:** Each $f_b$ has high variance (overfits its bootstrap sample), but the models are uncorrelated — averaging cancels out their individual errors.
+
+**Out-of-Bag (OOB) error:** Each bootstrap omits ~37% of training rows. These can serve as a free validation set, giving an unbiased estimate of test error without a separate hold-out.
+
+### 8.4.1 Bagging Classifier
+
+```{python}
+class BaggingClassifier:
+    """
+    Bagging with any base estimator (default: DecisionTree).
+    Aggregates via majority vote.
+    """
+
+    def __init__(self, n_estimators=10, max_depth=5,
+                 min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.estimators = []
+
+    def fit(self, X, y):
+        self.estimators = []
+        for b in range(self.n_estimators):
+            X_b, y_b = bootstrap_sample(X, y, seed=self.seed + b)
+            tree = DecisionTree(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                task='classification', seed=self.seed + b
+            )
+            tree.fit(X_b, y_b)
+            self.estimators.append(tree)
+        return self
+
+    def predict(self, X):
+        # Collect each tree's votes
+        all_preds = [t.predict(X) for t in self.estimators]
+        # Majority vote per sample
+        return [
+            Counter(all_preds[b][i] for b in range(self.n_estimators)).most_common(1)[0][0]
+            for i in range(len(X))
+        ]
+
+    def predict_proba(self, X):
+        """Fraction of trees voting for each class."""
+        all_preds = [t.predict(X) for t in self.estimators]
+        classes = sorted(set(p for preds in all_preds for p in preds))
+        proba = []
+        for i in range(len(X)):
+            votes = Counter(all_preds[b][i] for b in range(self.n_estimators))
+            total = self.n_estimators
+            proba.append({c: votes.get(c, 0) / total for c in classes})
+        return proba
+```
+
+### 8.4.2 Bagging Regressor
+
+```{python}
+class BaggingRegressor:
+    """
+    Bagging for regression: aggregates by averaging predictions.
+    """
+
+    def __init__(self, n_estimators=10, max_depth=5,
+                 min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.estimators = []
+
+    def fit(self, X, y):
+        self.estimators = []
+        for b in range(self.n_estimators):
+            X_b, y_b = bootstrap_sample(X, y, seed=self.seed + b)
+            tree = DecisionTree(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                task='regression', seed=self.seed + b
+            )
+            tree.fit(X_b, y_b)
+            self.estimators.append(tree)
+        return self
+
+    def predict(self, X):
+        # Average across all trees
+        all_preds = [t.predict(X) for t in self.estimators]
+        return [
+            mean([all_preds[b][i] for b in range(self.n_estimators)])
+            for i in range(len(X))
+        ]
+```
 
 ---
 
-## 📝 Exercises
+## 8.5 Random Forest
 
-1. Why does bagging reduce variance but not bias?
-2. Implement **Gradient Boosted Trees** (GBT) where each tree fits the *residuals* of the previous.
-3. What is **Out-of-Bag (OOB) error** and how can it be used instead of cross-validation?
+### Theory
+
+Random Forest = Bagging + **random feature subsets** at each split node.
+
+At each split, instead of searching all $p$ features, choose $m$ at random:
+
+$$m = \begin{cases} \lfloor\sqrt{p}\rfloor & \text{classification (default)} \\ \lfloor p/3 \rfloor & \text{regression (default)} \end{cases}$$
+
+This **de-correlates** the trees beyond what bagging alone achieves: even if one feature dominates, only a subset of trees can use it at any given split, so the ensemble doesn't become a collection of near-identical trees.
+
+### 8.5.1 Random Forest Classifier
+
+```{python}
+class RandomForestClassifier:
+    """
+    Random Forest for classification.
+    Splits on Gini impurity; aggregates by majority vote.
+    """
+
+    def __init__(self, n_estimators=10, max_depth=5,
+                 max_features='sqrt', min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.max_features = max_features
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.trees = []
+
+    def _n_features(self, p):
+        if self.max_features == 'sqrt':
+            return max(1, int(math.sqrt(p)))
+        if self.max_features == 'log2':
+            return max(1, int(math.log2(p)))
+        if isinstance(self.max_features, int):
+            return min(self.max_features, p)
+        return p
+
+    def fit(self, X, y):
+        self.trees = []
+        p = len(X[0])
+        m = self._n_features(p)
+        for b in range(self.n_estimators):
+            X_b, y_b = bootstrap_sample(X, y, seed=self.seed + b)
+            tree = DecisionTree(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                max_features=m,
+                task='classification',
+                seed=self.seed + b
+            )
+            tree.fit(X_b, y_b)
+            self.trees.append(tree)
+        return self
+
+    def predict(self, X):
+        all_preds = [t.predict(X) for t in self.trees]
+        return [
+            Counter(all_preds[b][i] for b in range(self.n_estimators)).most_common(1)[0][0]
+            for i in range(len(X))
+        ]
+
+    def predict_proba(self, X):
+        all_preds = [t.predict(X) for t in self.trees]
+        classes = sorted(set(p for preds in all_preds for p in preds))
+        proba = []
+        for i in range(len(X)):
+            votes = Counter(all_preds[b][i] for b in range(self.n_estimators))
+            proba.append({c: votes.get(c, 0) / self.n_estimators for c in classes})
+        return proba
+
+    def feature_importances(self, n_features):
+        """Mean decrease in Gini across all splits, all trees."""
+        importances = [0.0] * n_features
+        n_nodes = [0] * n_features
+
+        def _traverse(node):
+            if not isinstance(node, dict):
+                return
+            f = node['feat']
+            importances[f] += node.get('gain', 0)
+            n_nodes[f] += 1
+            _traverse(node['left'])
+            _traverse(node['right'])
+
+        for tree in self.trees:
+            _traverse(tree.tree)
+
+        total = sum(importances)
+        return [v / total if total > 0 else 0.0 for v in importances]
+```
+
+### 8.5.2 Random Forest Regressor
+
+```{python}
+class RandomForestRegressor:
+    """
+    Random Forest for regression.
+    Splits on MSE reduction; aggregates by averaging.
+    """
+
+    def __init__(self, n_estimators=10, max_depth=5,
+                 max_features='third', min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.max_features = max_features
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.trees = []
+
+    def _n_features(self, p):
+        if self.max_features == 'sqrt':
+            return max(1, int(math.sqrt(p)))
+        if self.max_features == 'third':
+            return max(1, p // 3)
+        if self.max_features == 'log2':
+            return max(1, int(math.log2(p)))
+        if isinstance(self.max_features, int):
+            return min(self.max_features, p)
+        return p
+
+    def fit(self, X, y):
+        self.trees = []
+        p = len(X[0])
+        m = self._n_features(p)
+        for b in range(self.n_estimators):
+            X_b, y_b = bootstrap_sample(X, y, seed=self.seed + b)
+            tree = DecisionTree(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                max_features=m,
+                task='regression',
+                seed=self.seed + b
+            )
+            tree.fit(X_b, y_b)
+            self.trees.append(tree)
+        return self
+
+    def predict(self, X):
+        all_preds = [t.predict(X) for t in self.trees]
+        return [
+            mean([all_preds[b][i] for b in range(self.n_estimators)])
+            for i in range(len(X))
+        ]
+```
 
 ---
 
-**← Previous:** [Chapter 07: SVM](chapter-07-svm.qmd)  
+## 8.6 Extra Trees (Extremely Randomized Trees)
+
+### Theory
+
+Extra Trees (Geurts et al., 2006) push randomisation further than Random Forest:
+
+| | Random Forest | Extra Trees |
+|--|--------------|-------------|
+| Bootstrap | Yes | No (full dataset) |
+| Feature subset per split | Yes $(\sqrt{p})$ | Yes $(\sqrt{p})$ |
+| Threshold search | Best among candidates | **Completely random** |
+
+Because thresholds are drawn at random (no search), Extra Trees trains **much faster** and introduces more variance-reducing randomisation, often matching or beating Random Forest.
+
+$$\text{threshold} \sim \text{Uniform}(\min_i x_{ij},\ \max_i x_{ij}) \quad \text{for each candidate feature } j$$
+
+### 8.6.1 Extra Trees Classifier
+
+```{python}
+class ExtraTreesClassifier:
+    """
+    Extremely Randomized Trees for classification.
+    No bootstrap, random thresholds — very fast.
+    """
+
+    def __init__(self, n_estimators=10, max_depth=5,
+                 max_features='sqrt', min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.max_features = max_features
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.trees = []
+
+    def _n_features(self, p):
+        if self.max_features == 'sqrt':
+            return max(1, int(math.sqrt(p)))
+        return p
+
+    def _build_extra(self, X, y, depth, rng, m):
+        if (len(set(y)) == 1
+                or len(y) < self.min_samples_split
+                or depth >= self.max_depth):
+            return mode(y)
+
+        n, p = len(X), len(X[0])
+        feat_ids = rng.sample(range(p), min(m, p))
+        best = {'gain': -1, 'feat': None, 'thr': None}
+        imp_parent = gini(y)
+
+        for feat in feat_ids:
+            vals = [row[feat] for row in X]
+            lo, hi = min(vals), max(vals)
+            if lo == hi:
+                continue
+            # Random threshold
+            thr = rng.uniform(lo, hi)
+            yl = [y[i] for i in range(n) if X[i][feat] <= thr]
+            yr = [y[i] for i in range(n) if X[i][feat] >  thr]
+            if not yl or not yr:
+                continue
+            gain = (imp_parent
+                    - (len(yl) / n) * gini(yl)
+                    - (len(yr) / n) * gini(yr))
+            if gain > best['gain']:
+                best = {'gain': gain, 'feat': feat, 'thr': thr}
+
+        if best['feat'] is None:
+            return mode(y)
+
+        f, thr = best['feat'], best['thr']
+        li = [i for i in range(n) if X[i][f] <= thr]
+        ri = [i for i in range(n) if X[i][f] >  thr]
+        return {
+            'feat': f, 'thr': thr,
+            'left':  self._build_extra([X[i] for i in li], [y[i] for i in li], depth+1, rng, m),
+            'right': self._build_extra([X[i] for i in ri], [y[i] for i in ri], depth+1, rng, m),
+        }
+
+    def _traverse(self, x, node):
+        if not isinstance(node, dict):
+            return node
+        branch = node['left'] if x[node['feat']] <= node['thr'] else node['right']
+        return self._traverse(x, branch)
+
+    def fit(self, X, y):
+        p = len(X[0])
+        m = self._n_features(p)
+        self.trees = []
+        for b in range(self.n_estimators):
+            rng = random.Random(self.seed + b)
+            tree = self._build_extra(X, y, 0, rng, m)
+            self.trees.append(tree)
+        return self
+
+    def predict(self, X):
+        all_preds = [[self._traverse(xi, t) for xi in X] for t in self.trees]
+        return [
+            Counter(all_preds[b][i] for b in range(self.n_estimators)).most_common(1)[0][0]
+            for i in range(len(X))
+        ]
+```
+
+### 8.6.2 Extra Trees Regressor
+
+```{python}
+class ExtraTreesRegressor:
+    """
+    Extremely Randomized Trees for regression.
+    """
+
+    def __init__(self, n_estimators=10, max_depth=5,
+                 max_features='sqrt', min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.max_features = max_features
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.trees = []
+
+    def _n_features(self, p):
+        if self.max_features == 'sqrt':
+            return max(1, int(math.sqrt(p)))
+        return max(1, p // 3)
+
+    def _build_extra(self, X, y, depth, rng, m):
+        if (len(y) < self.min_samples_split or depth >= self.max_depth):
+            return mean(y)
+
+        n, p = len(X), len(X[0])
+        feat_ids = rng.sample(range(p), min(m, p))
+        best = {'gain': -1, 'feat': None, 'thr': None}
+        imp_parent = mse(y)
+
+        for feat in feat_ids:
+            vals = [row[feat] for row in X]
+            lo, hi = min(vals), max(vals)
+            if lo == hi:
+                continue
+            thr = rng.uniform(lo, hi)
+            yl = [y[i] for i in range(n) if X[i][feat] <= thr]
+            yr = [y[i] for i in range(n) if X[i][feat] >  thr]
+            if not yl or not yr:
+                continue
+            gain = (imp_parent
+                    - (len(yl) / n) * mse(yl)
+                    - (len(yr) / n) * mse(yr))
+            if gain > best['gain']:
+                best = {'gain': gain, 'feat': feat, 'thr': thr}
+
+        if best['feat'] is None:
+            return mean(y)
+
+        f, thr = best['feat'], best['thr']
+        li = [i for i in range(n) if X[i][f] <= thr]
+        ri = [i for i in range(n) if X[i][f] >  thr]
+        return {
+            'feat': f, 'thr': thr,
+            'left':  self._build_extra([X[i] for i in li], [y[i] for i in li], depth+1, rng, m),
+            'right': self._build_extra([X[i] for i in ri], [y[i] for i in ri], depth+1, rng, m),
+        }
+
+    def _traverse(self, x, node):
+        if not isinstance(node, dict):
+            return node
+        branch = node['left'] if x[node['feat']] <= node['thr'] else node['right']
+        return self._traverse(x, branch)
+
+    def fit(self, X, y):
+        p = len(X[0])
+        m = self._n_features(p)
+        self.trees = []
+        for b in range(self.n_estimators):
+            rng = random.Random(self.seed + b)
+            tree = self._build_extra(X, y, 0, rng, m)
+            self.trees.append(tree)
+        return self
+
+    def predict(self, X):
+        all_preds = [[self._traverse(xi, t) for xi in X] for t in self.trees]
+        return [
+            mean([all_preds[b][i] for b in range(self.n_estimators)])
+            for i in range(len(X))
+        ]
+```
+
+---
+
+## 8.7 AdaBoost
+
+### Theory
+
+AdaBoost (Freund & Schapire, 1997) reweights training samples so each new weak learner focuses on what the ensemble currently gets wrong.
+
+**Algorithm (classification, $y \in \{-1, +1\}$):**
+
+1. Initialise sample weights: $w_i^{(1)} = \dfrac{1}{n}$
+
+2. For $t = 1, \ldots, T$:
+   - Train weak learner $h_t$ on weighted data
+   - Weighted error: $\varepsilon_t = \displaystyle\sum_{i=1}^n w_i^{(t)} \cdot \mathbf{1}[h_t(\mathbf{x}_i) \neq y_i]$
+   - Learner weight: $\alpha_t = \dfrac{1}{2} \ln\!\left(\dfrac{1 - \varepsilon_t}{\varepsilon_t}\right)$
+   - Weight update: $w_i^{(t+1)} = w_i^{(t)} \cdot \exp\!\left(-\alpha_t\, y_i\, h_t(\mathbf{x}_i)\right)$
+   - Normalise: $w_i^{(t+1)} \leftarrow w_i^{(t+1)} \big/ \displaystyle\sum_j w_j^{(t+1)}$
+
+3. Final prediction: $H(\mathbf{x}) = \text{sign}\!\left(\displaystyle\sum_{t=1}^T \alpha_t\, h_t(\mathbf{x})\right)$
+
+**AdaBoost for regression (R2 Boost)** uses a different error measure: the relative error for each sample is mapped into $[0,1]$ and used to compute $\alpha_t$.
+
+### 8.7.1 Decision Stump (weak learner)
+
+```{python}
+class DecisionStump:
+    """Depth-1 decision tree; supports both classification and regression."""
+
+    def __init__(self, task='classification'):
+        self.task = task
+        self.feat = None
+        self.thr = None
+        self.polarity = 1          # classification only
+        self.left_val = None       # regression: left leaf value
+        self.right_val = None      # regression: right leaf value
+
+    def fit(self, X, y, weights=None):
+        n = len(X)
+        if weights is None:
+            weights = [1.0 / n] * n
+
+        best_err = math.inf
+
+        for feat in range(len(X[0])):
+            vals = sorted(set(row[feat] for row in X))
+            thresholds = [(vals[i] + vals[i+1]) / 2 for i in range(len(vals) - 1)]
+
+            for thr in thresholds:
+                if self.task == 'classification':
+                    for polarity in [1, -1]:
+                        preds = [polarity if X[i][feat] <= thr else -polarity
+                                 for i in range(n)]
+                        err = sum(weights[i] for i in range(n) if preds[i] != y[i])
+                        if err < best_err:
+                            best_err = err
+                            self.feat, self.thr, self.polarity = feat, thr, polarity
+                else:
+                    li = [i for i in range(n) if X[i][feat] <= thr]
+                    ri = [i for i in range(n) if X[i][feat] >  thr]
+                    if not li or not ri:
+                        continue
+                    lv = sum(weights[i] * y[i] for i in li) / sum(weights[i] for i in li)
+                    rv = sum(weights[i] * y[i] for i in ri) / sum(weights[i] for i in ri)
+                    preds = [lv if X[i][feat] <= thr else rv for i in range(n)]
+                    err = sum(weights[i] * (y[i] - preds[i]) ** 2 for i in range(n))
+                    if err < best_err:
+                        best_err = err
+                        self.feat, self.thr = feat, thr
+                        self.left_val, self.right_val = lv, rv
+
+        return best_err
+
+    def predict(self, X):
+        if self.task == 'classification':
+            return [self.polarity if xi[self.feat] <= self.thr else -self.polarity
+                    for xi in X]
+        else:
+            return [self.left_val if xi[self.feat] <= self.thr else self.right_val
+                    for xi in X]
+```
+
+### 8.7.2 AdaBoost Classifier
+
+```{python}
+class AdaBoostClassifier:
+    """
+    AdaBoost for binary classification (labels must be -1 / +1).
+    Uses decision stumps as weak learners.
+    """
+
+    def __init__(self, n_estimators=50):
+        self.n_estimators = n_estimators
+        self.stumps = []
+        self.alphas = []
+
+    def fit(self, X, y):
+        """y must be in {-1, +1}."""
+        n = len(y)
+        w = [1.0 / n] * n
+        self.stumps, self.alphas = [], []
+
+        for _ in range(self.n_estimators):
+            stump = DecisionStump(task='classification')
+            err = stump.fit(X, y, w)
+
+            err = max(min(err, 1 - 1e-10), 1e-10)
+            alpha = 0.5 * math.log((1 - err) / err)
+
+            preds = stump.predict(X)
+            w = [w[i] * math.exp(-alpha * y[i] * preds[i]) for i in range(n)]
+            total = sum(w)
+            w = [wi / total for wi in w]
+
+            self.stumps.append(stump)
+            self.alphas.append(alpha)
+
+        return self
+
+    def predict_score(self, X):
+        scores = [0.0] * len(X)
+        for alpha, stump in zip(self.alphas, self.stumps):
+            for i, p in enumerate(stump.predict(X)):
+                scores[i] += alpha * p
+        return scores
+
+    def predict(self, X):
+        return [1 if s >= 0 else -1 for s in self.predict_score(X)]
+
+    def predict_proba(self, X):
+        """Soft probability via sigmoid of the score."""
+        scores = self.predict_score(X)
+        def sigmoid(x): return 1 / (1 + math.exp(-max(-500, min(500, x))))
+        return [sigmoid(s) for s in scores]
+```
+
+### 8.7.3 AdaBoost Regressor
+
+```{python}
+class AdaBoostRegressor:
+    """
+    AdaBoost.R2 for regression (Drucker, 1997).
+    Each stump is weighted by 1 - weighted relative error.
+    """
+
+    def __init__(self, n_estimators=50, learning_rate=1.0):
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.stumps = []
+        self.stump_weights = []
+
+    def fit(self, X, y):
+        n = len(y)
+        w = [1.0 / n] * n
+        self.stumps, self.stump_weights = [], []
+
+        for _ in range(self.n_estimators):
+            stump = DecisionStump(task='regression')
+            stump.fit(X, y, w)
+            preds = stump.predict(X)
+
+            # Relative error for each sample: e_i = |y_i - ŷ_i| / max_error
+            abs_errs = [abs(y[i] - preds[i]) for i in range(n)]
+            max_err = max(abs_errs) if max(abs_errs) > 0 else 1.0
+            rel_errs = [e / max_err for e in abs_errs]
+
+            # Weighted loss
+            loss = sum(w[i] * rel_errs[i] for i in range(n))
+            loss = max(min(loss, 1 - 1e-10), 1e-10)
+
+            beta = loss / (1 - loss)
+            stump_weight = self.learning_rate * math.log(1.0 / beta)
+
+            # Update sample weights: correct predictions → lower weight
+            w = [w[i] * (beta ** (1 - rel_errs[i])) for i in range(n)]
+            total = sum(w)
+            if total == 0:
+                break
+            w = [wi / total for wi in w]
+
+            self.stumps.append(stump)
+            self.stump_weights.append(stump_weight)
+
+        return self
+
+    def predict(self, X):
+        """Weighted median of stump predictions."""
+        if not self.stumps:
+            return [0.0] * len(X)
+
+        all_preds = [s.predict(X) for s in self.stumps]
+        total_w = sum(self.stump_weights)
+        results = []
+
+        for i in range(len(X)):
+            # Collect (prediction, weight) pairs and compute weighted median
+            pairs = sorted(
+                [(all_preds[t][i], self.stump_weights[t]) for t in range(len(self.stumps))],
+                key=lambda x: x[0]
+            )
+            cumsum = 0.0
+            half = total_w / 2
+            for val, wt in pairs:
+                cumsum += wt
+                if cumsum >= half:
+                    results.append(val)
+                    break
+            else:
+                results.append(pairs[-1][0])
+
+        return results
+```
+
+---
+
+## 8.8 Gradient Boosting
+
+### Theory
+
+Gradient Boosting (Friedman, 2001) frames boosting as **gradient descent in function space**. At each step, fit a new tree to the **negative gradient** of the loss with respect to the current predictions.
+
+**General algorithm:**
+
+1. Initialise: $F_0(\mathbf{x}) = \arg\min_c \sum_i \mathcal{L}(y_i, c)$
+2. For $t = 1, \ldots, T$:
+   - Compute pseudo-residuals (negative gradient):
+$$r_i^{(t)} = -\left[\frac{\partial \mathcal{L}(y_i, F(\mathbf{x}_i))}{\partial F(\mathbf{x}_i)}\right]_{F=F_{t-1}}$$
+   - Fit a regression tree $h_t$ to $\{(\mathbf{x}_i, r_i^{(t)})\}$
+   - Update: $F_t(\mathbf{x}) = F_{t-1}(\mathbf{x}) + \eta \cdot h_t(\mathbf{x})$
+
+**Loss functions and their gradients:**
+
+| Task | Loss $\mathcal{L}$ | Pseudo-residual $r_i$ |
+|------|-------------------|-----------------------|
+| Regression (MSE) | $\frac{1}{2}(y_i - F)^2$ | $y_i - F(\mathbf{x}_i)$ |
+| Classification (log-loss) | $-y_i \log p_i - (1-y_i)\log(1-p_i)$ | $y_i - \sigma(F(\mathbf{x}_i))$ |
+
+For regression, the pseudo-residual is just the ordinary residual. For classification, it is the difference between the true label and the predicted probability.
+
+### 8.8.1 Gradient Boosting Regressor
+
+```{python}
+class GradientBoostingRegressor:
+    """
+    Gradient Boosting for regression (squared-error loss).
+    Each stage fits a regression tree to the current residuals.
+    """
+
+    def __init__(self, n_estimators=100, learning_rate=0.1,
+                 max_depth=3, min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.trees = []
+        self.F0 = None
+
+    def fit(self, X, y):
+        # Initial prediction: mean of y
+        self.F0 = mean(y)
+        F = [self.F0] * len(y)
+        self.trees = []
+
+        for t in range(self.n_estimators):
+            # Pseudo-residuals = negative gradient of MSE = y - F
+            residuals = [y[i] - F[i] for i in range(len(y))]
+
+            # Fit regression tree to residuals
+            tree = DecisionTree(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                task='regression',
+                seed=self.seed + t
+            )
+            tree.fit(X, residuals)
+            self.trees.append(tree)
+
+            # Update predictions
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(y))]
+
+        return self
+
+    def predict(self, X):
+        F = [self.F0] * len(X)
+        for tree in self.trees:
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(X))]
+        return F
+```
+
+### 8.8.2 Gradient Boosting Classifier
+
+```{python}
+class GradientBoostingClassifier:
+    """
+    Gradient Boosting for binary classification (log-loss).
+    Outputs probability via sigmoid of the score F(x).
+    Labels must be 0 or 1.
+    """
+
+    def __init__(self, n_estimators=100, learning_rate=0.1,
+                 max_depth=3, min_samples_split=2, seed=0):
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.seed = seed
+        self.trees = []
+        self.F0 = None
+
+    @staticmethod
+    def _sigmoid(x):
+        return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
+
+    def fit(self, X, y):
+        n = len(y)
+        # Initial log-odds: log(p / (1-p)) where p = mean(y)
+        p0 = max(min(mean(y), 1 - 1e-7), 1e-7)
+        self.F0 = math.log(p0 / (1 - p0))
+        F = [self.F0] * n
+        self.trees = []
+
+        for t in range(self.n_estimators):
+            # Pseudo-residuals = y - sigmoid(F)  (negative gradient of log-loss)
+            probs = [self._sigmoid(fi) for fi in F]
+            residuals = [y[i] - probs[i] for i in range(n)]
+
+            # Fit regression tree to residuals
+            tree = DecisionTree(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                task='regression',
+                seed=self.seed + t
+            )
+            tree.fit(X, residuals)
+            self.trees.append(tree)
+
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(n)]
+
+        return self
+
+    def predict_proba(self, X):
+        F = [self.F0] * len(X)
+        for tree in self.trees:
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(X))]
+        return [self._sigmoid(fi) for fi in F]
+
+    def predict(self, X, threshold=0.5):
+        return [1 if p >= threshold else 0 for p in self.predict_proba(X)]
+```
+
+---
+
+## 8.9 XGBoost (Simplified)
+
+### Theory
+
+XGBoost (Chen & Guestrin, 2016) extends gradient boosting with:
+
+1. **Regularised objective** — adds $L_1$ and $L_2$ penalties on leaf weights to prevent overfitting:
+
+$$\mathcal{L}^{(t)} = \sum_i \ell(y_i, \hat{y}_i^{(t)}) + \sum_{k=1}^t \Omega(f_k), \quad \Omega(f) = \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2$$
+
+where $T$ = number of leaves, $w_j$ = weight of leaf $j$, $\gamma$ = minimum gain to split, $\lambda$ = L2 regularisation.
+
+2. **Second-order Taylor expansion** of the loss — uses both gradient $g_i$ and Hessian $h_i$:
+
+$$g_i = \frac{\partial \ell}{\partial \hat{y}^{(t-1)}}, \qquad h_i = \frac{\partial^2 \ell}{\partial (\hat{y}^{(t-1)})^2}$$
+
+3. **Optimal leaf weight:**
+
+$$w_j^* = -\frac{\sum_{i \in \text{leaf}_j} g_i}{\sum_{i \in \text{leaf}_j} h_i + \lambda}$$
+
+4. **Split gain** (must exceed $\gamma$ to allow a split):
+
+$$\text{Gain} = \frac{1}{2}\left[\frac{G_L^2}{H_L + \lambda} + \frac{G_R^2}{H_R + \lambda} - \frac{(G_L+G_R)^2}{H_L+H_R+\lambda}\right] - \gamma$$
+
+For **MSE regression**: $g_i = \hat{y}_i - y_i$, $h_i = 1$.
+For **log-loss classification**: $g_i = p_i - y_i$, $h_i = p_i(1-p_i)$.
+
+### 8.9.1 XGBoost Base Tree
+
+```{python}
+class XGBTree:
+    """
+    Single XGBoost tree: splits using second-order gain with regularisation.
+    """
+
+    def __init__(self, max_depth=3, min_child_weight=1,
+                 reg_lambda=1.0, gamma=0.0, seed=0):
+        self.max_depth = max_depth
+        self.min_child_weight = min_child_weight
+        self.reg_lambda = reg_lambda
+        self.gamma = gamma
+        self.seed = seed
+        self.tree = None
+
+    def _leaf_weight(self, G, H):
+        """Optimal leaf weight: -G / (H + lambda)."""
+        return -G / (H + self.reg_lambda)
+
+    def _gain(self, GL, HL, GR, HR):
+        """Split gain using second-order approximation."""
+        lam = self.reg_lambda
+        return 0.5 * (
+            GL**2 / (HL + lam) + GR**2 / (HR + lam)
+            - (GL + GR)**2 / (HL + HR + lam)
+        ) - self.gamma
+
+    def _build(self, X, g, h, depth):
+        G = sum(g)
+        H = sum(h)
+
+        if depth >= self.max_depth or H < self.min_child_weight:
+            return self._leaf_weight(G, H)
+
+        n = len(X)
+        best = {'gain': 0.0, 'feat': None, 'thr': None}
+
+        for feat in range(len(X[0])):
+            # Sort by feature value
+            order = sorted(range(n), key=lambda i: X[i][feat])
+            GL, HL = 0.0, 0.0
+            for k in range(n - 1):
+                i = order[k]
+                GL += g[i]
+                HL += h[i]
+                GR = G - GL
+                HR = H - HL
+                if HL < self.min_child_weight or HR < self.min_child_weight:
+                    continue
+                if X[order[k]][feat] == X[order[k+1]][feat]:
+                    continue
+                gain = self._gain(GL, HL, GR, HR)
+                if gain > best['gain']:
+                    best['gain'] = gain
+                    best['feat'] = feat
+                    best['thr'] = (X[order[k]][feat] + X[order[k+1]][feat]) / 2
+
+        if best['feat'] is None:
+            return self._leaf_weight(G, H)
+
+        f, thr = best['feat'], best['thr']
+        li = [i for i in range(n) if X[i][f] <= thr]
+        ri = [i for i in range(n) if X[i][f] >  thr]
+        return {
+            'feat': f, 'thr': thr,
+            'left':  self._build([X[i] for i in li], [g[i] for i in li], [h[i] for i in li], depth+1),
+            'right': self._build([X[i] for i in ri], [g[i] for i in ri], [h[i] for i in ri], depth+1),
+        }
+
+    def fit(self, X, g, h):
+        self.tree = self._build(X, g, h, 0)
+        return self
+
+    def _traverse(self, x, node):
+        if not isinstance(node, dict):
+            return node
+        branch = node['left'] if x[node['feat']] <= node['thr'] else node['right']
+        return self._traverse(x, branch)
+
+    def predict(self, X):
+        return [self._traverse(xi, self.tree) for xi in X]
+```
+
+### 8.9.2 XGBoost Regressor
+
+```{python}
+class XGBoostRegressor:
+    """
+    Simplified XGBoost for regression (MSE loss).
+    g_i = F(x_i) - y_i,  h_i = 1.
+    """
+
+    def __init__(self, n_estimators=100, learning_rate=0.1,
+                 max_depth=3, reg_lambda=1.0, gamma=0.0,
+                 min_child_weight=1, seed=0):
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.reg_lambda = reg_lambda
+        self.gamma = gamma
+        self.min_child_weight = min_child_weight
+        self.seed = seed
+        self.trees = []
+        self.F0 = None
+
+    def fit(self, X, y):
+        self.F0 = mean(y)
+        F = [self.F0] * len(y)
+        self.trees = []
+
+        for t in range(self.n_estimators):
+            g = [F[i] - y[i] for i in range(len(y))]   # gradient of MSE
+            h = [1.0] * len(y)                          # Hessian of MSE = 1
+
+            tree = XGBTree(
+                max_depth=self.max_depth,
+                min_child_weight=self.min_child_weight,
+                reg_lambda=self.reg_lambda,
+                gamma=self.gamma,
+                seed=self.seed + t
+            )
+            tree.fit(X, g, h)
+            self.trees.append(tree)
+
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(y))]
+
+        return self
+
+    def predict(self, X):
+        F = [self.F0] * len(X)
+        for tree in self.trees:
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(X))]
+        return F
+```
+
+### 8.9.3 XGBoost Classifier
+
+```{python}
+class XGBoostClassifier:
+    """
+    Simplified XGBoost for binary classification (log-loss).
+    g_i = p_i - y_i,  h_i = p_i * (1 - p_i).
+    Labels must be 0 or 1.
+    """
+
+    def __init__(self, n_estimators=100, learning_rate=0.1,
+                 max_depth=3, reg_lambda=1.0, gamma=0.0,
+                 min_child_weight=1, seed=0):
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.reg_lambda = reg_lambda
+        self.gamma = gamma
+        self.min_child_weight = min_child_weight
+        self.seed = seed
+        self.trees = []
+        self.F0 = None
+
+    @staticmethod
+    def _sigmoid(x):
+        return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
+
+    def fit(self, X, y):
+        p0 = max(min(mean(y), 1 - 1e-7), 1e-7)
+        self.F0 = math.log(p0 / (1 - p0))
+        F = [self.F0] * len(y)
+        self.trees = []
+
+        for t in range(self.n_estimators):
+            probs = [self._sigmoid(fi) for fi in F]
+            g = [probs[i] - y[i] for i in range(len(y))]
+            h = [probs[i] * (1 - probs[i]) for i in range(len(y))]
+
+            tree = XGBTree(
+                max_depth=self.max_depth,
+                min_child_weight=self.min_child_weight,
+                reg_lambda=self.reg_lambda,
+                gamma=self.gamma,
+                seed=self.seed + t
+            )
+            tree.fit(X, g, h)
+            self.trees.append(tree)
+
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(y))]
+
+        return self
+
+    def predict_proba(self, X):
+        F = [self.F0] * len(X)
+        for tree in self.trees:
+            updates = tree.predict(X)
+            F = [F[i] + self.learning_rate * updates[i] for i in range(len(X))]
+        return [self._sigmoid(fi) for fi in F]
+
+    def predict(self, X, threshold=0.5):
+        return [1 if p >= threshold else 0 for p in self.predict_proba(X)]
+```
+
+---
+
+## 8.10 Full Demo: Classification and Regression
+
+```{python}
+# ── Toy datasets ──────────────────────────────────────────────────────────
+
+random.seed(42)
+
+# Classification: 2 moons (linearly non-separable)
+def make_moons(n=80, noise=0.15, seed=42):
+    rng = random.Random(seed)
+    X, y = [], []
+    half = n // 2
+    for i in range(half):
+        angle = math.pi * i / half
+        X.append([math.cos(angle) + rng.gauss(0, noise),
+                  math.sin(angle) + rng.gauss(0, noise)])
+        y.append(0)
+    for i in range(half):
+        angle = math.pi * i / half
+        X.append([1 - math.cos(angle) + rng.gauss(0, noise),
+                  0.5 - math.sin(angle) + rng.gauss(0, noise)])
+        y.append(1)
+    return X, y
+
+# Regression: noisy sine wave
+def make_sine(n=80, noise=0.2, seed=42):
+    rng = random.Random(seed)
+    X = [[rng.uniform(-3, 3)] for _ in range(n)]
+    y = [math.sin(x[0]) + rng.gauss(0, noise) for x in X]
+    return X, y
+
+X_cls, y_cls = make_moons(n=80, seed=42)
+X_reg, y_reg = make_sine(n=80, seed=42)
+
+# Train/test split (70/30)
+def split(X, y, test_ratio=0.3, seed=42):
+    rng = random.Random(seed)
+    idx = list(range(len(X)))
+    rng.shuffle(idx)
+    cut = int(len(X) * (1 - test_ratio))
+    tr, te = idx[:cut], idx[cut:]
+    return ([X[i] for i in tr], [y[i] for i in tr],
+            [X[i] for i in te], [y[i] for i in te])
+
+Xtr_c, ytr_c, Xte_c, yte_c = split(X_cls, y_cls)
+Xtr_r, ytr_r, Xte_r, yte_r = split(X_reg, y_reg)
+
+# AdaBoost needs {-1,+1} labels
+ytr_c_ada = [2*v-1 for v in ytr_c]
+
+# ── Classification benchmark ──────────────────────────────────────────────
+
+print("=" * 62)
+print(f"{'MODEL':<30} {'Train Acc':>10} {'Test Acc':>10}")
+print("=" * 62)
+
+models_cls = [
+    ("Bagging Classifier",
+     BaggingClassifier(n_estimators=20, max_depth=4, seed=0)),
+    ("Random Forest Classifier",
+     RandomForestClassifier(n_estimators=20, max_depth=4, seed=0)),
+    ("Extra Trees Classifier",
+     ExtraTreesClassifier(n_estimators=20, max_depth=4, seed=0)),
+    ("Gradient Boosting Classifier",
+     GradientBoostingClassifier(n_estimators=50, learning_rate=0.1, max_depth=2, seed=0)),
+    ("XGBoost Classifier",
+     XGBoostClassifier(n_estimators=50, learning_rate=0.1, max_depth=2,
+                       reg_lambda=1.0, gamma=0.0, seed=0)),
+]
+
+for name, mdl in models_cls:
+    mdl.fit(Xtr_c, ytr_c)
+    tr_acc = accuracy(ytr_c, mdl.predict(Xtr_c))
+    te_acc = accuracy(yte_c, mdl.predict(Xte_c))
+    print(f"{name:<30} {tr_acc:>10.3f} {te_acc:>10.3f}")
+
+# AdaBoost needs {-1,+1}
+ada_cls = AdaBoostClassifier(n_estimators=50)
+ada_cls.fit(Xtr_c, ytr_c_ada)
+tr_acc = accuracy(ytr_c, [(p+1)//2 for p in ada_cls.predict(Xtr_c)])
+te_acc = accuracy(yte_c, [(p+1)//2 for p in ada_cls.predict(Xte_c)])
+print(f"{'AdaBoost Classifier':<30} {tr_acc:>10.3f} {te_acc:>10.3f}")
+
+# ── Regression benchmark ──────────────────────────────────────────────────
+
+print()
+print("=" * 62)
+print(f"{'MODEL':<30} {'Train R²':>10} {'Test R²':>10}")
+print("=" * 62)
+
+models_reg = [
+    ("Bagging Regressor",
+     BaggingRegressor(n_estimators=20, max_depth=4, seed=0)),
+    ("Random Forest Regressor",
+     RandomForestRegressor(n_estimators=20, max_depth=4, seed=0)),
+    ("Extra Trees Regressor",
+     ExtraTreesRegressor(n_estimators=20, max_depth=4, seed=0)),
+    ("AdaBoost Regressor",
+     AdaBoostRegressor(n_estimators=50, learning_rate=1.0)),
+    ("Gradient Boosting Regressor",
+     GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=2, seed=0)),
+    ("XGBoost Regressor",
+     XGBoostRegressor(n_estimators=100, learning_rate=0.1, max_depth=2,
+                      reg_lambda=1.0, gamma=0.0, seed=0)),
+]
+
+for name, mdl in models_reg:
+    mdl.fit(Xtr_r, ytr_r)
+    tr_r2 = r2(ytr_r, mdl.predict(Xtr_r))
+    te_r2 = r2(yte_r, mdl.predict(Xte_r))
+    print(f"{name:<30} {tr_r2:>10.3f} {te_r2:>10.3f}")
+```
+
+---
+
+## 8.11 Comparison Table
+
+### Classification
+
+| Model | Bias | Variance | Training | Key Strength |
+|-------|------|----------|----------|-------------|
+| Bagging | Low | Lower | Medium | Simple, stable |
+| Random Forest | Low | Low | Medium | Best general baseline |
+| Extra Trees | Low | Lowest | Fast | Very low variance, fast |
+| AdaBoost | Lower | Low | Slower | Excellent on clean data |
+| Gradient Boosting | Very Low | Low | Slow | High accuracy |
+| XGBoost | Very Low | Low | Slow | Regularised, industry standard |
+
+### Regression
+
+| Model | Interpolates | Extrapolates | Handles Noise | Key Strength |
+|-------|-------------|-------------|--------------|-------------|
+| Bagging Regressor | Good | Poor | Good | Simple ensemble |
+| RF Regressor | Good | Poor | Very Good | Robust, parallelisable |
+| Extra Trees Regressor | Good | Poor | Good | Fastest training |
+| AdaBoost Regressor | Good | Poor | Moderate | Weighted median output |
+| GB Regressor | Excellent | Poor | Good | Stage-wise optimisation |
+| XGBoost Regressor | Excellent | Poor | Good | L1/L2 regularisation, pruning |
+
+---
+
+## 8.12 Hyperparameter Guide
+
+| Parameter | Affects | Typical range |
+|-----------|---------|--------------|
+| `n_estimators` | Variance ↓ as $B \uparrow$ | 50–500 |
+| `max_depth` | Bias-variance trade-off | 2–6 (boosting), 5–20 (bagging) |
+| `learning_rate` (boosting) | Step size; smaller needs more trees | 0.01–0.3 |
+| `max_features` | De-correlation of trees | `sqrt` (cls), `third` (reg) |
+| `reg_lambda` (XGBoost) | L2 regularisation on leaf weights | 0.1–10 |
+| `gamma` (XGBoost) | Minimum gain to allow split | 0–5 |
+| `min_child_weight` (XGBoost) | Minimum Hessian sum in leaf | 1–10 |
+
+---
+
+## 8.13 Exercises
+
+1. **OOB error**: For `BaggingClassifier`, track which samples are left out of each bootstrap and compute out-of-bag accuracy without a separate test set.
+2. **Feature importance**: Use the `feature_importances` method of `RandomForestClassifier` to rank features. Compare to the result from a single decision tree.
+3. **Early stopping**: Add early stopping to `GradientBoostingRegressor` — stop adding trees when validation loss stops improving.
+4. **Stacking**: Build a meta-learner (logistic regression from Chapter 03) that takes the predictions of `RandomForestClassifier`, `GradientBoostingClassifier`, and `AdaBoostClassifier` as input features.
+5. **XGBoost column subsampling**: Add `colsample_bytree` to `XGBoostClassifier` — randomly select a fraction of features before building each tree (similar to Random Forest's `max_features`).
+6. **Multiclass AdaBoost**: Extend `AdaBoostClassifier` to handle $K > 2$ classes using the SAMME algorithm.
+
+---
+
+## ✅ Summary
+
+| Algorithm | Task | Aggregation | Key Idea |
+|-----------|------|------------|---------|
+| Bagging | Both | Vote / Mean | Bootstrap samples reduce variance |
+| Random Forest | Both | Vote / Mean | Bagging + random feature subsets |
+| Extra Trees | Both | Vote / Mean | RF + random thresholds (no search) |
+| AdaBoost | Both | Weighted vote / Weighted median | Reweight samples on errors |
+| Gradient Boosting | Both | Additive | Fit trees to negative gradient |
+| XGBoost | Both | Additive | GB + 2nd-order gradients + regularisation |
+
+---
+
+**← Previous:** [Chapter 07: Support Vector Machines](chapter-07-svm.qmd)
 **→ Next:** [Chapter 09: Neural Networks](chapter-09-neural-networks.qmd)
+**← Back to Start:** [Home](../index.qmd)

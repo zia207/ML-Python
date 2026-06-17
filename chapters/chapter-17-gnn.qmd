@@ -1,0 +1,409 @@
+---
+title: "Chapter 17: Graph Neural Networks"
+subtitle: "Message passing, node classification, link prediction — from scratch"
+date: last-modified
+categories: [advanced, deep-learning, graphs, gnn]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+jupyter: python3
+---
+
+# Chapter 17: Graph Neural Networks (GNNs)
+
+> **Level**: Advanced | **Estimated Time**: 6–8 hours | **Prerequisites**: Chapter 09 (Neural Networks), Chapter 13 (PCA)
+
+---
+
+## 17.1 Intuition
+
+CNNs exploit the **grid structure** of images; RNNs exploit **sequential structure**. But many real-world datasets are **graphs**:
+
+- Social networks (nodes = users, edges = friendships)
+- Molecular graphs (nodes = atoms, edges = bonds)
+- Citation networks (nodes = papers, edges = citations)
+- Knowledge graphs (entities connected by relations)
+
+Standard neural networks can't handle graphs directly because:
+- Graphs have **variable size** — different numbers of nodes and edges
+- There is **no canonical ordering** of neighbours
+- Relationships between nodes carry information
+
+**GNNs** learn by **message passing**: each node iteratively aggregates information from its neighbourhood, building up richer representations over multiple rounds.
+
+---
+
+## 17.2 Theory
+
+### 17.2.1 Graph Basics
+
+A graph $G = (V, E)$ consists of:
+- $V$ — set of $N$ nodes, each with feature vector $\mathbf{x}_v \in \mathbb{R}^d$
+- $E$ — set of edges; represented as adjacency matrix $\mathbf{A} \in \{0,1\}^{N \times N}$
+- $\mathcal{N}(v)$ — neighbourhood of node $v$ (nodes connected by an edge)
+
+### 17.2.2 Message Passing Framework
+
+Each GNN layer updates node embeddings via three steps:
+
+$$\text{MESSAGE:} \quad \mathbf{m}_{uv} = \phi(\mathbf{h}_v, \mathbf{h}_u) \quad \text{for each neighbour } u \text{ of } v$$
+
+$$\text{AGGREGATE:} \quad \mathbf{a}_v = \rho\!\left(\{\mathbf{m}_{uv} : u \in \mathcal{N}(v)\}\right) \quad \leftarrow \text{permutation-invariant (sum/mean/max)}$$
+
+$$\text{UPDATE:} \quad \mathbf{h}'_v = \psi(\mathbf{h}_v, \mathbf{a}_v)$$
+
+Where $\phi, \rho, \psi$ are learnable functions. After $K$ layers, each node has a representation informed by its $K$-hop neighbourhood.
+
+### 17.2.3 Graph Convolutional Network (GCN)
+
+The GCN layer (Kipf & Welling, 2017) simplifies to:
+
+$$\mathbf{H}' = \sigma\!\left(\tilde{\mathbf{D}}^{-1/2} \tilde{\mathbf{A}} \tilde{\mathbf{D}}^{-1/2} \mathbf{H} \mathbf{W}\right)$$
+
+Where:
+- $\tilde{\mathbf{A}} = \mathbf{A} + \mathbf{I}$ — adjacency with self-loops added
+- $\tilde{\mathbf{D}}$ — degree matrix of $\tilde{\mathbf{A}}$ (diagonal)
+- $\mathbf{H}$ — node feature matrix ($N \times d$)
+- $\mathbf{W}$ — learnable weight matrix ($d \times d'$)
+- $\sigma$ — activation (ReLU)
+
+The normalisation $\tilde{\mathbf{D}}^{-1/2} \tilde{\mathbf{A}} \tilde{\mathbf{D}}^{-1/2}$ prevents exploding/vanishing from high-degree nodes.
+
+For a single node $v$, the update simplifies to:
+
+$$\mathbf{h}'_v = \sigma\!\left( \mathbf{W}^\top \cdot \frac{1}{\sqrt{\deg(v)}} \sum_{u \in \mathcal{N}(v) \cup \{v\}} \frac{1}{\sqrt{\deg(u)}} \mathbf{h}_u \right)$$
+
+### 17.2.4 Graph SAGE (Sample and Aggregate)
+
+Instead of using the full neighbourhood, GraphSAGE samples a fixed number of neighbours and concatenates the aggregated neighbourhood with the node's own embedding:
+
+$$\mathbf{a}_v = \text{AGGREGATE}\!\left(\{\mathbf{h}_u : u \in \text{sample}(\mathcal{N}(v))\}\right)$$
+
+$$\mathbf{h}'_v = \sigma(\mathbf{W} \cdot \text{concat}(\mathbf{h}_v, \mathbf{a}_v))$$
+
+Allows inductive learning (generalise to unseen nodes).
+
+---
+
+## 17.3 Algorithm
+
+```
+GCN Forward Pass:
+─────────────────
+Input: node features X (N×d), adjacency A (N×N), weights W (d×d')
+
+1. A_tilde = A + I_N          (add self-loops)
+2. Compute D_tilde_vv = sum_j A_tilde_vj  (degree of each node in A_tilde)
+3. For each node v:
+     h'_v = sigma( sum_u A_tilde[v,u] / sqrt(D_tilde[v,v] * D_tilde[u,u]) * h_u * W )
+
+Stack L layers for L-hop neighbourhood aggregation.
+Final node embeddings → node classification / link prediction / graph pooling
+```
+
+---
+
+## 17.4 From-Scratch Python
+
+```{python}
+import math
+import random
+
+# ── Math helpers ─────────────────────────────────────────────────────────
+
+def relu(x): return max(0.0, x)
+
+def relu_v(v): return [relu(x) for x in v]
+
+def sigmoid(x):
+    return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
+
+def mat_mul(A, B):
+    """Matrix multiply: A is (m×k), B is (k×n) → (m×n)."""
+    m, k, n = len(A), len(B), len(B[0])
+    return [[sum(A[i][p]*B[p][j] for p in range(k)) for j in range(n)] for i in range(m)]
+
+def mat_vec(W, x):
+    return [sum(W[i][j]*x[j] for j in range(len(x))) for i in range(len(W))]
+
+def xavier(rows, cols, seed=0):
+    rng = random.Random(seed)
+    limit = math.sqrt(6.0 / (rows + cols))
+    return [[rng.uniform(-limit, limit) for _ in range(cols)] for _ in range(rows)]
+
+def softmax(v):
+    m = max(v)
+    e = [math.exp(x - m) for x in v]
+    s = sum(e)
+    return [x/s for x in e]
+
+# ── Graph representation ──────────────────────────────────────────────────
+
+class Graph:
+    """Simple undirected graph with node features."""
+    def __init__(self, num_nodes, feature_dim):
+        self.N = num_nodes
+        self.D = feature_dim
+        self.adj = [[0] * num_nodes for _ in range(num_nodes)]
+        self.features = [[0.0] * feature_dim for _ in range(num_nodes)]
+
+    def add_edge(self, u, v):
+        self.adj[u][v] = 1
+        self.adj[v][u] = 1
+
+    def degree(self, v):
+        return sum(self.adj[v])
+
+# ── GCN Layer ─────────────────────────────────────────────────────────────
+
+class GCNLayer:
+    def __init__(self, in_dim, out_dim, seed=42):
+        self.W = xavier(out_dim, in_dim, seed)  # (out, in)
+        self.b = [0.0] * out_dim
+
+    def forward(self, H, adj, activate=True):
+        """
+        H:   node features (N × in_dim)
+        adj: adjacency matrix (N × N)
+        Returns: updated node features (N × out_dim)
+        """
+        N = len(H)
+
+        # Add self-loops: A_tilde = A + I
+        A_tilde = [[adj[i][j] + (1 if i==j else 0) for j in range(N)] for i in range(N)]
+
+        # Degree matrix D_tilde (diagonal, so just a vector)
+        D_tilde = [sum(A_tilde[i]) for i in range(N)]
+
+        # Normalised aggregation: sum_u A_tilde[v,u]/sqrt(D[v]*D[u]) * h_u
+        H_agg = []
+        for v in range(N):
+            agg = [0.0] * len(H[0])
+            for u in range(N):
+                if A_tilde[v][u] > 0:
+                    norm = 1.0 / math.sqrt(D_tilde[v] * D_tilde[u])
+                    for k in range(len(H[0])):
+                        agg[k] += norm * H[u][k]
+            H_agg.append(agg)
+
+        # Linear transform: H_agg * W^T + b
+        H_out = []
+        for v in range(N):
+            out = [sum(self.W[j][k] * H_agg[v][k] for k in range(len(H[0]))) + self.b[j]
+                   for j in range(len(self.W))]
+            if activate:
+                out = relu_v(out)
+            H_out.append(out)
+
+        return H_out
+
+# ── Two-layer GCN for node classification ────────────────────────────────
+
+class GCN:
+    def __init__(self, in_dim, hidden_dim, num_classes, seed=42):
+        self.layer1 = GCNLayer(in_dim, hidden_dim, seed)
+        self.layer2 = GCNLayer(hidden_dim, num_classes, seed+1)
+
+    def forward(self, H, adj):
+        H = self.layer1.forward(H, adj, activate=True)
+        H = self.layer2.forward(H, adj, activate=False)  # logits
+        return [softmax(h) for h in H]                    # per-node probs
+
+    def predict(self, H, adj):
+        probs = self.forward(H, adj)
+        return [max(range(len(p)), key=lambda i: p[i]) for p in probs]
+
+# ── GraphSAGE aggregator ──────────────────────────────────────────────────
+
+class GraphSAGELayer:
+    def __init__(self, in_dim, out_dim, seed=42):
+        # W for self + W for neighbourhood (concatenated)
+        self.W = xavier(out_dim, 2 * in_dim, seed)
+        self.b = [0.0] * out_dim
+
+    def forward(self, H, adj, sample_size=None, activate=True):
+        N = len(H)
+        in_dim = len(H[0])
+        H_out = []
+
+        for v in range(N):
+            neighbours = [u for u in range(N) if adj[v][u] == 1]
+
+            if sample_size and len(neighbours) > sample_size:
+                neighbours = random.sample(neighbours, sample_size)
+
+            if neighbours:
+                # Mean aggregation
+                agg = [sum(H[u][k] for u in neighbours) / len(neighbours)
+                       for k in range(in_dim)]
+            else:
+                agg = [0.0] * in_dim
+
+            # Concatenate self + aggregated
+            combined = H[v] + agg       # 2*in_dim
+
+            # Linear + optional activation
+            out = [sum(self.W[j][k] * combined[k] for k in range(2*in_dim)) + self.b[j]
+                   for j in range(len(self.W))]
+            if activate:
+                out = relu_v(out)
+            # L2 normalise (common in GraphSAGE)
+            norm = math.sqrt(sum(x*x for x in out)) + 1e-9
+            out = [x / norm for x in out]
+            H_out.append(out)
+
+        return H_out
+
+# ── Demo: Karate Club graph (simplified, 8 nodes) ─────────────────────────
+
+def build_karate_mini():
+    """
+    Miniature version of Zachary's Karate Club.
+    8 nodes split into 2 communities.
+    """
+    g = Graph(8, 4)
+    # Community 0: nodes 0-3
+    for u, v in [(0,1),(0,2),(0,3),(1,2),(2,3)]:
+        g.add_edge(u, v)
+    # Community 1: nodes 4-7
+    for u, v in [(4,5),(4,6),(4,7),(5,6),(6,7)]:
+        g.add_edge(u, v)
+    # Bridge edges
+    g.add_edge(3, 4)
+
+    # Node features: community indicator + noise
+    rng = random.Random(42)
+    for i in range(4):
+        g.features[i] = [1.0, 0.0, rng.gauss(0,0.1), rng.gauss(0,0.1)]
+    for i in range(4, 8):
+        g.features[i] = [0.0, 1.0, rng.gauss(0,0.1), rng.gauss(0,0.1)]
+
+    labels = [0]*4 + [1]*4
+    return g, labels
+
+g, labels = build_karate_mini()
+
+print("=== GCN Node Classification Demo ===")
+print(f"Graph: {g.N} nodes, {sum(sum(row) for row in g.adj)//2} edges")
+
+# Two-layer GCN: 4 → 8 → 2
+gcn = GCN(in_dim=4, hidden_dim=8, num_classes=2, seed=7)
+preds = gcn.predict(g.features, g.adj)
+
+print(f"\nNode labels (ground truth): {labels}")
+print(f"GCN predictions (untrained): {preds}")
+acc = sum(p==l for p,l in zip(preds, labels)) / len(labels)
+print(f"Accuracy (random init, no training): {acc:.2f}")
+
+print("\n=== GraphSAGE Demo ===")
+sage = GraphSAGELayer(4, 8, seed=99)
+H_out = sage.forward(g.features, g.adj)
+print(f"GraphSAGE embeddings (8-dim, first 2 nodes):")
+print(f"  Node 0: {[round(v,3) for v in H_out[0]]}")
+print(f"  Node 4: {[round(v,3) for v in H_out[4]]}")
+```
+
+---
+
+## 17.5 Link Prediction
+
+A common GNN task: predict whether an edge $(u, v)$ exists.
+
+After obtaining node embeddings $\mathbf{h}_u$ and $\mathbf{h}_v$, compute edge score:
+
+$$\text{score}(u, v) = \sigma(\mathbf{h}_u \cdot \mathbf{h}_v) \quad \text{(dot product)}$$
+
+$$\text{score}(u, v) = \sigma(\text{MLP}(\text{concat}(\mathbf{h}_u, \mathbf{h}_v))) \quad \text{(more expressive)}$$
+
+```{python}
+def link_prediction_score(h_u, h_v):
+    """Dot-product link prediction."""
+    dot = sum(a*b for a,b in zip(h_u, h_v))
+    return sigmoid(dot)
+
+# Example with GraphSAGE embeddings
+score_same = link_prediction_score(H_out[0], H_out[1])  # same community
+score_diff = link_prediction_score(H_out[0], H_out[5])  # different community
+print(f"\nLink Prediction Scores:")
+print(f"  Nodes 0-1 (same community):  {score_same:.3f}")
+print(f"  Nodes 0-5 (diff community):  {score_diff:.3f}")
+```
+
+---
+
+## 17.6 Graph Pooling
+
+For **graph-level** tasks (e.g., molecule property prediction), pool all node embeddings into a single graph embedding:
+
+$$\text{Global mean pooling:} \quad \mathbf{h}_G = \frac{1}{N} \sum_v \mathbf{h}_v$$
+
+$$\text{Global max pooling:} \quad h_{G,k} = \max_v h_{v,k}$$
+
+Hierarchical pooling: iteratively cluster nodes (DiffPool).
+
+```{python}
+def global_mean_pool(node_embeddings):
+    N = len(node_embeddings)
+    D = len(node_embeddings[0])
+    return [sum(node_embeddings[i][j] for i in range(N)) / N for j in range(D)]
+
+graph_embedding = global_mean_pool(H_out)
+print(f"\nGraph embedding (mean pool, 8-dim): {[round(v,3) for v in graph_embedding]}")
+```
+
+---
+
+## 17.7 GNN Variants
+
+| Model | Year | Key Innovation |
+|-------|------|---------------|
+| GCN | 2017 | Spectral convolution simplified to neighbourhood avg |
+| GraphSAGE | 2017 | Inductive, sample-based, concat self + nbr |
+| GAT | 2018 | Attention weights on each edge |
+| GIN | 2019 | Maximally expressive (Weisfeiler-Lehman test) |
+| PNA | 2020 | Multiple aggregators + degree scalers |
+| GraphTransformer | 2021 | Transformer attention over graphs |
+
+---
+
+## 17.8 Applications
+
+| Domain | Task | GNN |
+|--------|------|-----|
+| Drug discovery | Molecular property prediction | MPNN / GIN |
+| Social network | Fake news detection | GAT |
+| Recommendation | User-item interactions | GraphSAGE |
+| Traffic | Speed prediction | Spatio-temporal GNN |
+| Knowledge graph | Link prediction | TransE / RotatE |
+| Protein folding | Structure prediction | Equivariant GNN |
+
+---
+
+## 17.9 Exercises
+
+1. Implement a Graph Attention (GAT) layer where each edge has a learned attention weight $\alpha_{uv} = \text{softmax}(\text{LeakyReLU}(\mathbf{a}^\top [\mathbf{W}\mathbf{h}_v \| \mathbf{W}\mathbf{h}_u]))$.
+2. Add a simple training loop to the GCN with cross-entropy loss and gradient descent (finite differences or manual backprop).
+3. Implement the Weisfeiler-Lehman graph isomorphism test and relate it to GIN's sum aggregation.
+4. Build a 3-layer GCN and visualise the node embeddings after each layer on the mini Karate Club graph.
+5. Implement global max pooling and concatenate it with mean pooling for a richer graph embedding.
+
+---
+
+## ✅ Summary
+
+| Concept | Key Idea |
+|---------|---------|
+| Message passing | Nodes aggregate info from neighbours iteratively |
+| GCN | Normalised neighbourhood average × learned weight |
+| GraphSAGE | Sample neighbours, concat self + aggregated |
+| GAT | Attention weights per edge, focus on important neighbours |
+| Link prediction | Dot product of node embeddings → edge probability |
+| Graph pooling | Aggregate all node embeddings → graph-level representation |
+
+---
+
+**← Previous:** [Chapter 16: CNNs — Advanced](chapter-16-cnn-advanced.qmd)
+**→ Next:** [Chapter 18: Natural Language Processing](chapter-18-nlp.qmd)
+**← Back to Start:** [Home](../index.qmd)

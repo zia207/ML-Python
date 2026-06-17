@@ -1,0 +1,450 @@
+---
+title: "Chapter 19: Generative Models"
+subtitle: "GANs, VAEs, diffusion concepts, and image generation from scratch"
+date: last-modified
+categories: [advanced, deep-learning, generative, gan, vae]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+jupyter: python3
+---
+
+# Chapter 19: Generative Models
+
+> **Level**: Advanced | **Estimated Time**: 8–10 hours | **Prerequisites**: Chapter 09 (Neural Networks), Chapter 15 (LSTM)
+
+---
+
+## 19.1 Intuition
+
+All previous chapters learn **discriminative** models: given x, predict y. **Generative** models learn the data distribution P(x) itself, enabling:
+
+- **Synthesis**: generate new images, text, audio
+- **Compression**: encode data into compact latent representations
+- **Anomaly detection**: low P(x) → the sample is unusual
+- **Data augmentation**: generate additional training samples
+- **Representation learning**: learn meaningful structure from unlabelled data
+
+This chapter covers the three dominant paradigms:
+
+| Model | Core Idea | Strengths |
+|-------|-----------|-----------|
+| **VAE** | Encode to latent distribution, decode | Smooth latent space, fast sampling |
+| **GAN** | Generator vs discriminator game | Sharp images, creative outputs |
+| **Diffusion** | Iteratively denoise from noise | State-of-the-art quality (2020+) |
+
+---
+
+## 19.2 Variational Autoencoders (VAE)
+
+### 19.2.1 Theory
+
+A **standard autoencoder** learns an encoder E: x → z and decoder D: z → x̂. But the latent space z is unstructured — you can't easily sample new points from it.
+
+A **VAE** (Kingma & Welling, 2013) solves this by making the encoder output a **distribution** rather than a single point:
+
+$$\text{Encoder:} \quad q_\phi(\mathbf{z} \mid \mathbf{x}) = \mathcal{N}(\boldsymbol{\mu}(\mathbf{x}),\; \boldsymbol{\sigma}^2(\mathbf{x})) \quad \leftarrow \text{outputs mean and variance}$$
+
+$$\text{Decoder:} \quad p_\theta(\mathbf{x} \mid \mathbf{z}) \quad \leftarrow \text{reconstructs from sampled } \mathbf{z}$$
+
+**Training objective (ELBO):**
+
+$$\mathcal{L}(\theta, \phi;\, \mathbf{x}) = \mathbb{E}\!\left[\log p_\theta(\mathbf{x} \mid \mathbf{z})\right] - \text{KL}\!\left(q_\phi(\mathbf{z} \mid \mathbf{x}) \,\|\, p(\mathbf{z})\right)$$
+
+$$= \underbrace{\text{Reconstruction loss}}_{\text{decoded } \hat{\mathbf{x}} \approx \mathbf{x}} \;+\; \underbrace{\text{Regularisation term}}_{\text{push } q_\phi \text{ toward } \mathcal{N}(0,\mathbf{I})}$$
+
+**Reparameterisation trick**: to backprop through sampling, write:
+
+$$\mathbf{z} = \boldsymbol{\mu} + \boldsymbol{\sigma} \odot \boldsymbol{\varepsilon} \quad \text{where } \boldsymbol{\varepsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$$
+
+This moves the randomness to ε (not a parameter), so gradients flow through μ and σ.
+
+### 19.2.2 KL Divergence (Gaussian)
+
+For q = N(μ, σ²) and p = N(0, 1):
+
+$$\text{KL}(q \| p) = \frac{1}{2} \sum_j \left(\sigma_j^2 + \mu_j^2 - 1 - \log \sigma_j^2\right)$$
+
+### 19.2.3 From-Scratch VAE
+
+```{python}
+import math
+import random
+
+# ── Math helpers ─────────────────────────────────────────────────────────
+
+def relu(x): return max(0.0, x)
+def relu_v(v): return [relu(x) for x in v]
+
+def sigmoid(x):
+    return 1.0 / (1.0 + math.exp(-max(-500, min(500, x))))
+
+def sigmoid_v(v): return [sigmoid(x) for x in v]
+
+def tanh_v(v): return [math.tanh(x) for x in v]
+
+def xavier(rows, cols, seed=0):
+    rng = random.Random(seed)
+    limit = math.sqrt(6.0 / (rows + cols))
+    return [[rng.uniform(-limit, limit) for _ in range(cols)] for _ in range(rows)]
+
+def mat_vec(W, x):
+    return [sum(W[i][j]*x[j] for j in range(len(x))) for i in range(len(W))]
+
+def vec_add(a, b): return [x+y for x,y in zip(a,b)]
+
+# ── VAE (toy, 1D latent, 2D input) ────────────────────────────────────────
+
+class VAE:
+    """
+    Minimal VAE: input_dim → hidden → (mu, log_var) → z → hidden → output
+    Demonstrates the ELBO objective and reparameterisation trick.
+    """
+
+    def __init__(self, input_dim, hidden_dim, latent_dim, seed=42):
+        self.latent_dim = latent_dim
+        self.rng = random.Random(seed)
+
+        # Encoder weights
+        self.We1   = xavier(hidden_dim, input_dim,  seed)
+        self.be1   = [0.0] * hidden_dim
+        self.W_mu  = xavier(latent_dim, hidden_dim, seed+1)
+        self.b_mu  = [0.0] * latent_dim
+        self.W_lv  = xavier(latent_dim, hidden_dim, seed+2)
+        self.b_lv  = [0.0] * latent_dim
+
+        # Decoder weights
+        self.Wd1   = xavier(hidden_dim, latent_dim, seed+3)
+        self.bd1   = [0.0] * hidden_dim
+        self.Wd2   = xavier(input_dim, hidden_dim,  seed+4)
+        self.bd2   = [0.0] * input_dim
+
+    # ── Encode ────────────────────────────────────────────────────────────
+
+    def encode(self, x):
+        h = relu_v(vec_add(mat_vec(self.We1, x), self.be1))
+        mu     = vec_add(mat_vec(self.W_mu, h), self.b_mu)
+        log_var = vec_add(mat_vec(self.W_lv, h), self.b_lv)
+        return mu, log_var
+
+    def reparameterise(self, mu, log_var):
+        """z = mu + exp(0.5 * log_var) * eps,  eps ~ N(0,1)."""
+        eps = [self.rng.gauss(0, 1) for _ in range(len(mu))]
+        std = [math.exp(0.5 * lv) for lv in log_var]
+        z = [mu[i] + std[i] * eps[i] for i in range(len(mu))]
+        return z
+
+    # ── Decode ────────────────────────────────────────────────────────────
+
+    def decode(self, z):
+        h = relu_v(vec_add(mat_vec(self.Wd1, z), self.bd1))
+        x_hat = sigmoid_v(vec_add(mat_vec(self.Wd2, h), self.bd2))
+        return x_hat
+
+    # ── Forward ───────────────────────────────────────────────────────────
+
+    def forward(self, x):
+        mu, log_var = self.encode(x)
+        z = self.reparameterise(mu, log_var)
+        x_hat = self.decode(z)
+        return x_hat, mu, log_var, z
+
+    # ── ELBO Loss ─────────────────────────────────────────────────────────
+
+    def elbo_loss(self, x, x_hat, mu, log_var):
+        # Binary cross-entropy reconstruction loss
+        eps = 1e-9
+        recon = -sum(
+            x[i]*math.log(x_hat[i]+eps) + (1-x[i])*math.log(1-x_hat[i]+eps)
+            for i in range(len(x))
+        )
+        # KL divergence: 0.5 * sum(sigma^2 + mu^2 - 1 - log sigma^2)
+        kl = 0.5 * sum(math.exp(lv) + m**2 - 1 - lv
+                       for m, lv in zip(mu, log_var))
+        return recon + kl, recon, kl
+
+    # ── Sample from prior ─────────────────────────────────────────────────
+
+    def sample(self, n=1):
+        """Generate new samples by sampling z ~ N(0,I) and decoding."""
+        samples = []
+        for _ in range(n):
+            z = [self.rng.gauss(0, 1) for _ in range(self.latent_dim)]
+            samples.append(self.decode(z))
+        return samples
+
+# Demo: teach VAE to encode/decode 4-bit binary patterns
+def int_to_bits(n, bits=4):
+    return [(n >> (bits-1-i)) & 1 for i in range(bits)]
+
+data = [int_to_bits(i, 4) for i in range(16)]
+data = [[float(b) for b in row] for row in data]
+
+vae = VAE(input_dim=4, hidden_dim=8, latent_dim=2, seed=0)
+
+print("=== VAE Forward Pass Demo ===")
+x = data[5]   # binary for 5 = [0,1,0,1]
+x_hat, mu, log_var, z = vae.forward(x)
+loss, recon, kl = vae.elbo_loss(x, x_hat, mu, log_var)
+
+print(f"Input x:          {x}")
+print(f"Reconstruction:   {[round(v,3) for v in x_hat]}")
+print(f"Latent mu:        {[round(v,3) for v in mu]}")
+print(f"Latent log_var:   {[round(v,3) for v in log_var]}")
+print(f"ELBO loss: {loss:.3f}  (recon={recon:.3f}, KL={kl:.3f})")
+
+print(f"\nSampled from prior (before training — random):")
+for s in vae.sample(3):
+    print(f"  {[round(v,2) for v in s]}")
+```
+
+---
+
+## 19.3 Generative Adversarial Networks (GAN)
+
+### 19.3.1 Theory
+
+A GAN (Goodfellow et al., 2014) trains two networks in competition:
+
+- **Generator G**: maps noise z ~ p(z) to fake data G(z) ∈ data space
+- **Discriminator D**: classifies real vs fake; outputs P(real | x)
+
+**Min-max game:**
+
+$$\min_G \max_D \quad \mathbb{E}_{\mathbf{x} \sim p_{\text{data}}}\!\left[\log D(\mathbf{x})\right] + \mathbb{E}_{\mathbf{z} \sim p_z}\!\left[\log(1 - D(G(\mathbf{z})))\right]$$
+
+D tries to maximise: assign 1 to real, 0 to fake.
+G tries to minimise: fool D into assigning 1 to G(z).
+
+At Nash equilibrium: G(z) = p_data, D(x) = 0.5 everywhere.
+
+**Practical generator loss**: instead of minimising `log(1-D(G(z)))` (saturates early), maximise `log D(G(z))` — the **non-saturating GAN** loss.
+
+### 19.3.2 Training Loop
+
+```
+For each iteration:
+  1. Sample real batch x ~ p_data
+  2. Sample noise z ~ p_z, generate fake = G(z)
+  3. Train D:
+       loss_D = -[log D(x) + log(1 - D(G(z)))]
+       Update D weights (maximise → gradient ascent)
+  4. Train G:
+       loss_G = -log D(G(z))
+       Update G weights (gradient descent)
+```
+
+### 19.3.3 From-Scratch GAN
+
+```{python}
+# ── Minimal GAN: 1-parameter linear generator, 1-parameter discriminator ──
+#
+# G(z) = w_g * z + b_g    (maps N(0,1) noise → data)
+# D(x) = sigmoid(w_d * x + b_d)  (classifies real vs fake)
+#
+# Real data: N(mu=3, sigma=0.5)
+# Goal: G should learn to output ~ N(3, 0.5)
+
+def gan_demo():
+    rng = random.Random(42)
+    lr = 0.05
+    n_steps = 300
+
+    # Generator parameters (single linear layer: scalar)
+    w_g, b_g = 0.1, 0.0   # G(z) = w_g*z + b_g
+
+    # Discriminator parameters (single linear layer: scalar)
+    w_d, b_d = 0.0, 0.0   # D(x) = sigmoid(w_d*x + b_d)
+
+    def gen(z):
+        return w_g * z + b_g
+
+    def disc(x):
+        return sigmoid(w_d * x + b_d)
+
+    print("=== Toy 1D GAN (linear G, linear D) ===")
+    print(f"Real data: N(mu=3.0, sigma=0.5)")
+    print(f"{'Step':>6}  {'w_g':>8}  {'b_g':>8}  {'G_mean':>8}  {'D_loss':>8}  {'G_loss':>8}")
+
+    for step in range(n_steps):
+        # ── Sample ────────────────────────────────────────────────────────
+        x_real = rng.gauss(3.0, 0.5)
+        z      = rng.gauss(0.0, 1.0)
+        x_fake = gen(z)
+
+        d_real = disc(x_real)
+        d_fake = disc(x_fake)
+
+        # ── Discriminator update (maximise log D(real) + log(1-D(fake))) ─
+        # Analytic gradients for scalar case:
+        # dL_D/dw_d = -(d_real - 1)*x_real - d_fake*x_fake
+        # dL_D/db_d = -(d_real - 1)         - d_fake
+        g_wd = -(d_real - 1) * x_real - d_fake * x_fake
+        g_bd = -(d_real - 1)           - d_fake
+        w_d += lr * g_wd   # gradient ASCENT for D
+        b_d += lr * g_bd
+
+        # Recompute D(fake) after D update
+        d_fake2 = disc(x_fake)
+
+        # ── Generator update (maximise log D(G(z))) ───────────────────────
+        # dL_G/dw_g = (1 - d_fake2) * w_d * z
+        # dL_G/db_g = (1 - d_fake2) * w_d
+        g_wg = (1 - d_fake2) * w_d * z
+        g_bg = (1 - d_fake2) * w_d
+        w_g += lr * g_wg   # gradient ASCENT for G (maximise log D(G(z)))
+        b_g += lr * g_bg
+
+        if (step + 1) % 60 == 0:
+            # Estimate G mean over 50 samples
+            g_mean = sum(gen(rng.gauss(0,1)) for _ in range(50)) / 50
+            d_loss = -math.log(disc(x_real)+1e-9) - math.log(1 - disc(x_fake)+1e-9)
+            g_loss = -math.log(disc(x_fake)+1e-9)
+            print(f"{step+1:>6}  {w_g:>8.3f}  {b_g:>8.3f}  {g_mean:>8.3f}  "
+                  f"{d_loss:>8.3f}  {g_loss:>8.3f}")
+
+    g_mean_final = sum(gen(rng.gauss(0,1)) for _ in range(200)) / 200
+    print(f"\nFinal G mean: {g_mean_final:.3f}  (target: 3.0)")
+    print(f"Final G(z) = {w_g:.3f} * z + {b_g:.3f}")
+    print(f"  → maps N(0,1) approximately to N({b_g:.2f}, {abs(w_g):.2f}²)")
+
+gan_demo()
+```
+
+---
+
+## 19.4 Diffusion Models (Conceptual)
+
+Diffusion models (Ho et al., 2020 — DDPM) are the foundation of Stable Diffusion, DALL-E 2, and Imagen.
+
+### 19.4.1 Forward Process (Add Noise)
+
+Gradually corrupt data x₀ over T steps by adding Gaussian noise:
+
+$$q(\mathbf{x}_t \mid \mathbf{x}_{t-1}) = \mathcal{N}\!\left(\mathbf{x}_t;\; \sqrt{1-\beta_t}\, \mathbf{x}_{t-1},\; \beta_t \mathbf{I}\right)$$
+
+With noise schedule $\beta_1 < \beta_2 < \cdots < \beta_T$, after $T$ steps $\mathbf{x}_T \approx \mathcal{N}(\mathbf{0}, \mathbf{I})$.
+
+In closed form (reparameterising with $\bar{\alpha}_t = \prod_s (1-\beta_s)$):
+
+$$\mathbf{x}_t = \sqrt{\bar{\alpha}_t}\, \mathbf{x}_0 + \sqrt{1 - \bar{\alpha}_t}\, \boldsymbol{\varepsilon}, \quad \boldsymbol{\varepsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$$
+
+### 19.4.2 Reverse Process (Remove Noise)
+
+A neural network $\boldsymbol{\varepsilon}_\theta$ learns to predict the noise $\boldsymbol{\varepsilon}$ given $\mathbf{x}_t$:
+
+$$\mathcal{L} = \mathbb{E}_{t,\, \mathbf{x}_0,\, \boldsymbol{\varepsilon}}\!\left[\left\|\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}_\theta(\mathbf{x}_t, t)\right\|^2\right]$$
+
+At inference, start from $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ and iteratively remove predicted noise:
+
+$$\mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}}\!\left(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1-\bar{\alpha}_t}}\, \boldsymbol{\varepsilon}_\theta(\mathbf{x}_t, t)\right) + \sigma_t \mathbf{z}, \quad \mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$$
+
+### 19.4.3 Toy Diffusion Demo
+
+```{python}
+def linear_beta_schedule(T, beta_start=0.0001, beta_end=0.02):
+    return [beta_start + (beta_end - beta_start) * t / (T-1) for t in range(T)]
+
+T = 100
+betas = linear_beta_schedule(T)
+alphas = [1 - b for b in betas]
+alpha_bars = []
+prod = 1.0
+for a in alphas:
+    prod *= a
+    alpha_bars.append(prod)
+
+def forward_diffuse(x0, t, rng):
+    """Add noise to x0 at step t."""
+    ab = alpha_bars[t]
+    eps = [rng.gauss(0, 1) for _ in range(len(x0))]
+    xt = [math.sqrt(ab)*x0[i] + math.sqrt(1-ab)*eps[i] for i in range(len(x0))]
+    return xt, eps
+
+rng = random.Random(42)
+x0 = [1.0, -0.5, 0.3]   # toy clean data point
+
+print(f"\n=== Forward Diffusion Process ===")
+print(f"Clean x₀: {x0}")
+for t in [0, 25, 50, 75, 99]:
+    xt, _ = forward_diffuse(x0, t, rng)
+    signal_power = sum(v**2 for v in xt) / len(xt)
+    print(f"  t={t:>3}: xt={[round(v,3) for v in xt]}  "
+          f"ᾱₜ={alpha_bars[t]:.3f}  SNR≈{alpha_bars[t]/(1-alpha_bars[t]):.3f}")
+
+print(f"\nAt t=99 the signal is almost entirely noise (ᾱ≈{alpha_bars[99]:.4f})")
+```
+
+---
+
+## 19.5 Mode Collapse and Training Stability
+
+GANs are notoriously hard to train. Common failure modes:
+
+| Problem | Symptom | Fix |
+|---------|---------|-----|
+| Mode collapse | G always generates same output | Minibatch discrimination, spectral norm |
+| Vanishing D gradient | D too good, G gets no signal | WGAN (Wasserstein loss), gradient penalty |
+| Oscillation | G and D cycle without converging | Two-timescale update rule |
+| Checkerboard artifacts | Grid patterns in images | Sub-pixel convolution instead of deconv |
+
+**Wasserstein GAN** replaces the cross-entropy loss with Earth Mover's distance:
+
+$$\mathcal{L}_{\text{WGAN}} = \mathbb{E}[D(\text{real})] - \mathbb{E}[D(\text{fake})] + \lambda \cdot \text{gradient penalty on } D$$
+
+---
+
+## 19.6 Comparison of Generative Models
+
+| Property | VAE | GAN | Diffusion |
+|----------|-----|-----|-----------|
+| Training stability | Stable | Unstable | Stable |
+| Sample quality | Blurry | Sharp | State-of-the-art |
+| Sample speed | Fast (single forward pass) | Fast | Slow (many denoising steps) |
+| Latent space | Structured (useful for interpolation) | Less structured | None (implicit) |
+| Likelihood estimate | Lower bound (ELBO) | Not directly | Exact (VLB) |
+| Mode coverage | Good | Mode collapse risk | Excellent |
+
+---
+
+## 19.7 Applications
+
+| Model | Application |
+|-------|------------|
+| VAE | Image editing, molecule design, anomaly detection |
+| GAN | Image synthesis (StyleGAN), super-resolution, deepfakes |
+| cGAN | Text-to-image (class/text conditioned) |
+| DDPM / DDIM | Stable Diffusion, Imagen, DALL-E 2 |
+| Flow models | Density estimation, exact likelihood |
+| Energy-based | Contrastive learning, anomaly detection |
+
+---
+
+## 19.8 Exercises
+
+1. Add a training loop to the VAE that performs gradient descent using finite differences. Plot the ELBO loss across 100 epochs.
+2. Implement **minibatch discrimination** to reduce mode collapse: compute pairwise distances in a mini-batch and append them as features to the discriminator.
+3. Modify the GAN to use **Wasserstein loss** (no sigmoid on D, clip D weights to [-0.01, 0.01] after each update — the original WGAN weight-clipping approach).
+4. Implement linear interpolation in the VAE's latent space between two data points and decode each interpolated z.
+5. Implement the DDIM sampler (deterministic denoising) and compare the number of steps needed vs the stochastic DDPM sampler.
+
+---
+
+## ✅ Summary
+
+| Concept | Key Idea |
+|---------|---------|
+| VAE | Encode to distribution; reparameterisation trick; ELBO = recon + KL |
+| GAN | Generator fools discriminator; adversarial min-max game |
+| Mode collapse | G gets stuck generating one mode; fix with WGAN/minibatch disc. |
+| Diffusion | Gradually add noise, then learn to denoise; best quality 2020+ |
+| Latent space | Low-dimensional representation of data structure |
+| Reparameterisation | z = μ + σε allows backprop through stochastic node |
+
+---
+
+**← Previous:** [Chapter 18: Natural Language Processing](chapter-18-nlp.qmd)
+**→ Next:** [Chapter 20: Model Evaluation & Best Practices](chapter-20-model-evaluation.qmd)
+**← Back to Start:** [Home](../index.qmd)

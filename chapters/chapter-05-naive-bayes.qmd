@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 05: Naive Bayes
@@ -18,7 +19,7 @@ code-tools: true
 
 ## 5.1 Intuition
 
-Naive Bayes is a **probabilistic classifier** based on Bayes' Theorem.  
+Naive Bayes is a **probabilistic classifier** based on Bayes' Theorem.
 It asks: *"Given these features, which class is most probable?"*
 
 The "naive" part: it assumes all features are **conditionally independent** given the class — an unrealistic but surprisingly effective assumption.
@@ -27,31 +28,27 @@ The "naive" part: it assumes all features are **conditionally independent** give
 
 ## 5.2 Bayes' Theorem
 
-```
-P(y | x) = P(x | y) · P(y) / P(x)
-```
+$$P(y \mid \mathbf{x}) = \frac{P(\mathbf{x} \mid y) \cdot P(y)}{P(\mathbf{x})}$$
 
 Where:
-- `P(y | x)` — **Posterior**: probability of class y given features x (what we want)
-- `P(x | y)` — **Likelihood**: probability of seeing features x if class is y
-- `P(y)` — **Prior**: how common is class y overall
-- `P(x)` — **Evidence**: constant for a fixed x, so we often ignore it
+- $P(y \mid \mathbf{x})$ — **Posterior**: probability of class $y$ given features $\mathbf{x}$ (what we want)
+- $P(\mathbf{x} \mid y)$ — **Likelihood**: probability of seeing features $\mathbf{x}$ if class is $y$
+- $P(y)$ — **Prior**: how common is class $y$ overall
+- $P(\mathbf{x})$ — **Evidence**: constant for a fixed $\mathbf{x}$, so we often ignore it
 
 **Decision rule** (MAP — Maximum A Posteriori):
-```
-ŷ = argmax_y [ P(y) · Π_j P(xⱼ | y) ]
-```
+
+$$\hat{y} = \arg\max_y \left[ P(y) \cdot \prod_j P(x_j \mid y) \right]$$
 
 In log space (to avoid underflow):
-```
-ŷ = argmax_y [ log P(y) + Σⱼ log P(xⱼ | y) ]
-```
+
+$$\hat{y} = \arg\max_y \left[ \log P(y) + \sum_j \log P(x_j \mid y) \right]$$
 
 ---
 
 ## 5.3 Variants of Naive Bayes
 
-| Variant | Assumption about P(xⱼ | y) | Use case |
+| Variant | Assumption about $P(x_j \mid y)$ | Use case |
 |---------|---------------------------|----------|
 | **Gaussian NB** | Features follow Normal distribution | Continuous features |
 | **Bernoulli NB** | Features are binary (0/1) | Binary text features |
@@ -63,13 +60,11 @@ In log space (to avoid underflow):
 
 For continuous features, model each feature as Gaussian (Normal):
 
-```
-P(xⱼ | y=c) = (1 / √(2πσ²)) · exp(-(xⱼ - μ)² / (2σ²))
-```
+$$P(x_j \mid y=c) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\!\left(-\frac{(x_j - \mu)^2}{2\sigma^2}\right)$$
 
-**Training** (per class c, per feature j):
-- μⱼ,c = mean of feature j among all samples with class c
-- σ²ⱼ,c = variance of feature j among all samples with class c
+**Training** (per class $c$, per feature $j$):
+- $\mu_{j,c}$ = mean of feature $j$ among all samples with class $c$
+- $\sigma^2_{j,c}$ = variance of feature $j$ among all samples with class $c$
 
 ---
 
@@ -123,7 +118,7 @@ class GaussianNaiveBayes:
         return -0.5 * math.log(2 * math.pi * var) - (x - mu)**2 / (2 * var)
 
     def _log_likelihood(self, x, c):
-        """Sum of log P(xⱼ | y=c) over all features j."""
+        """Sum of log P(xj | y=c) over all features j."""
         return sum(
             self._log_gaussian(xj, self.means[c][j], self.variances[c][j])
             for j, xj in enumerate(x)
@@ -267,14 +262,13 @@ if __name__ == "__main__":
 
 ## 5.6 Laplace Smoothing
 
-A problem: if a word never appeared in training for class "spam", then P(word|spam) = 0 and the entire product becomes 0!
+A problem: if a word never appeared in training for class "spam", then $P(\text{word} \mid \text{spam}) = 0$ and the entire product becomes 0!
 
-**Laplace Smoothing** (add-α):
-```
-P(xⱼ | y=c) = (count(xⱼ, c) + α) / (total_count_in_c + α × n_features)
-```
+**Laplace Smoothing** (add-$\alpha$):
 
-With α=1, every feature gets a pseudo-count of 1 to prevent zero probabilities.
+$$P(x_j \mid y=c) = \frac{\text{count}(x_j, c) + \alpha}{\text{total\_count\_in\_c} + \alpha \times n_{\text{features}}}$$
+
+With $\alpha=1$, every feature gets a pseudo-count of 1 to prevent zero probabilities.
 
 ---
 
@@ -282,7 +276,7 @@ With α=1, every feature gets a pseudo-count of 1 to prevent zero probabilities.
 
 | Concept | Key Idea |
 |---------|---------|
-| Bayes' Theorem | `P(y|x) ∝ P(x|y) · P(y)` |
+| Bayes' Theorem | $P(y \mid \mathbf{x}) \propto P(\mathbf{x} \mid y) \cdot P(y)$ |
 | Naive assumption | Features are conditionally independent given class |
 | Gaussian NB | Models continuous features as Normal distributions |
 | Multinomial NB | Models discrete counts (great for text) |
@@ -292,12 +286,12 @@ With α=1, every feature gets a pseudo-count of 1 to prevent zero probabilities.
 
 ## 📝 Exercises
 
-1. Prove that argmax of log P(y|x) is the same as argmax of P(y|x).
+1. Prove that $\arg\max$ of $\log P(y \mid \mathbf{x})$ is the same as $\arg\max$ of $P(y \mid \mathbf{x})$.
 2. Implement **Bernoulli Naive Bayes** for binary features (presence/absence of words).
 3. Add **TF-IDF** weighting to the `BagOfWords` vectorizer.
 4. Why might Naive Bayes outperform logistic regression on small datasets despite its strong independence assumption?
 
 ---
 
-**← Previous:** [Chapter 04: KNN](chapter-04-knn.qmd)  
+**← Previous:** [Chapter 04: KNN](chapter-04-knn.qmd)
 **→ Next:** [Chapter 06: Decision Trees](chapter-06-decision-trees.qmd)

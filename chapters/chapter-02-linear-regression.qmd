@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 02: Linear Regression
@@ -24,9 +25,7 @@ Linear regression answers: *"Given some input features, can we predict a continu
 
 The idea: fit a straight line through the data so predictions are as close to reality as possible.
 
-```
-Price = w₁ × (size) + w₀
-```
+$$\text{Price} = w_1 \times \text{size} + w_0$$
 
 In higher dimensions, this becomes a **hyperplane** instead of a line.
 
@@ -35,23 +34,19 @@ In higher dimensions, this becomes a **hyperplane** instead of a line.
 ## 2.2 Mathematical Formulation
 
 ### The Model
-Given input vector **x** = [x₁, x₂, ..., xₚ] and weights **w** = [w₀, w₁, ..., wₚ]:
+Given input vector $\mathbf{x} = [x_1, x_2, \ldots, x_p]$ and weights $\mathbf{w} = [w_0, w_1, \ldots, w_p]$:
 
-```
-ŷ = w₀ + w₁x₁ + w₂x₂ + ... + wₚxₚ
+$$\hat{y} = w_0 + w_1 x_1 + w_2 x_2 + \cdots + w_p x_p$$
 
 In compact vector form:
-ŷ = wᵀx   (where x₀ = 1 is added as a bias feature)
-```
+
+$$\hat{y} = \mathbf{w}^\top \mathbf{x} \quad \text{(where } x_0 = 1 \text{ is added as a bias feature)}$$
 
 ### The Cost Function (Mean Squared Error)
-We want **w** such that predictions ŷ are close to true targets y.  
+We want $\mathbf{w}$ such that predictions $\hat{y}$ are close to true targets $y$.
 We measure this with **Mean Squared Error (MSE)**:
 
-```
-J(w) = (1/n) Σᵢ (yᵢ - ŷᵢ)²
-     = (1/n) Σᵢ (yᵢ - wᵀxᵢ)²
-```
+$$J(\mathbf{w}) = \frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2 = \frac{1}{n} \sum_{i=1}^{n} (y_i - \mathbf{w}^\top \mathbf{x}_i)^2$$
 
 **Why squared?** Squaring penalizes large errors more, is always positive, and is smooth (differentiable).
 
@@ -61,27 +56,23 @@ J(w) = (1/n) Σᵢ (yᵢ - ŷᵢ)²
 
 ### Method 1: Ordinary Least Squares (Closed-Form Solution)
 
-Taking the derivative of J(w) and setting it to zero gives:
+Taking the derivative of $J(\mathbf{w})$ and setting it to zero gives:
 
-```
-w* = (XᵀX)⁻¹ Xᵀy
-```
+$$\mathbf{w}^* = (\mathbf{X}^\top \mathbf{X})^{-1} \mathbf{X}^\top \mathbf{y}$$
 
-This is the **Normal Equation** — an exact solution, but computationally expensive for large datasets (O(p³) matrix inversion).
+This is the **Normal Equation** — an exact solution, but computationally expensive for large datasets ($O(p^3)$ matrix inversion).
 
 ### Method 2: Gradient Descent
 
 **Gradient descent** iteratively updates weights by moving in the direction that reduces the cost:
 
-```
-Repeat until convergence:
-    gradient = (2/n) Σᵢ (ŷᵢ - yᵢ) · xᵢ
-    w ← w - α · gradient
-```
+$$\text{gradient} = \frac{2}{n} \sum_{i=1}^{n} (\hat{y}_i - y_i) \cdot \mathbf{x}_i$$
+
+$$\mathbf{w} \leftarrow \mathbf{w} - \alpha \cdot \text{gradient}$$
 
 Where:
-- `α` (alpha) is the **learning rate** — how big each update step is
-- Too large α: overshoots the minimum; Too small: slow convergence
+- $\alpha$ (alpha) is the **learning rate** — how big each update step is
+- Too large $\alpha$: overshoots the minimum; Too small: slow convergence
 
 ---
 
@@ -101,19 +92,19 @@ class LinearRegression:
     def __init__(self, learning_rate=0.01, n_iterations=1000):
         self.lr = learning_rate
         self.n_iterations = n_iterations
-        self.weights = None   # [w₀, w₁, ..., wₚ]
+        self.weights = None   # [w0, w1, ..., wp]
         self.cost_history = []
 
     def _add_bias(self, X):
-        """Prepend a 1 to each sample for the bias term w₀."""
+        """Prepend a 1 to each sample for the bias term w0."""
         return [[1.0] + list(row) for row in X]
 
     def _predict_one(self, x_with_bias):
-        """Compute ŷ = wᵀx for a single sample."""
+        """Compute y_hat = w^T x for a single sample."""
         return sum(wi * xi for wi, xi in zip(self.weights, x_with_bias))
 
     def _compute_cost(self, X_b, y):
-        """Mean Squared Error: J = (1/n) Σ (yᵢ - ŷᵢ)²"""
+        """Mean Squared Error: J = (1/n) sum (yi - y_hat_i)^2"""
         n = len(y)
         total = 0.0
         for xi, yi in zip(X_b, y):
@@ -135,11 +126,11 @@ class LinearRegression:
             gradients = [0.0] * p
             for xi, yi in zip(X_b, y):
                 y_pred = self._predict_one(xi)
-                error = y_pred - yi            # (ŷ - y)
+                error = y_pred - yi            # (y_hat - y)
                 for j in range(p):
                     gradients[j] += error * xi[j]
 
-            # Update weights: w ← w - α * (2/n) * gradient
+            # Update weights: w <- w - alpha * (2/n) * gradient
             for j in range(p):
                 self.weights[j] -= self.lr * (2 / n) * gradients[j]
 
@@ -186,9 +177,9 @@ if __name__ == "__main__":
     model = LinearRegression(learning_rate=0.05, n_iterations=2000)
     model.fit(X_train, y_train)
 
-    print("Learned weights (w₀=bias, w₁=size coefficient):")
-    print(f"  w₀ = {model.weights[0]:.2f}")
-    print(f"  w₁ = {model.weights[1]:.2f}")
+    print("Learned weights (w0=bias, w1=size coefficient):")
+    print(f"  w0 = {model.weights[0]:.2f}")
+    print(f"  w1 = {model.weights[1]:.2f}")
     print(f"  Equation: price = {model.weights[0]:.1f} + {model.weights[1]:.1f} × size")
 
     # Evaluate
@@ -203,9 +194,9 @@ if __name__ == "__main__":
 
 **Expected Output:**
 ```
-Learned weights (w₀=bias, w₁=size coefficient):
-  w₀ = 46.23
-  w₁ = 140.88
+Learned weights (w0=bias, w1=size coefficient):
+  w0 = 46.23
+  w1 = 140.88
   Equation: price = 46.2 + 140.9 × size
 
 Test Predictions vs Actuals:
@@ -268,10 +259,10 @@ Two techniques to prevent overfitting in linear models:
 
 | Method | Adds to Cost | Effect |
 |--------|-------------|--------|
-| **Ridge (L2)** | `λ Σ wⱼ²` | Shrinks weights toward zero |
-| **Lasso (L1)** | `λ Σ |wⱼ|` | Can set some weights exactly to zero (feature selection) |
+| **Ridge (L2)** | $\lambda \sum_j w_j^2$ | Shrinks weights toward zero |
+| **Lasso (L1)** | $\lambda \sum_j \|w_j\|$ | Can set some weights exactly to zero (feature selection) |
 
-Lambda `λ` controls the regularization strength (a hyperparameter).
+Lambda $\lambda$ controls the regularization strength (a hyperparameter).
 
 ---
 
@@ -279,21 +270,21 @@ Lambda `λ` controls the regularization strength (a hyperparameter).
 
 | Concept | Formula |
 |---------|---------|
-| Linear model | `ŷ = wᵀx` |
-| Cost function | `J = (1/n) Σ (y - ŷ)²` |
-| Gradient update | `w ← w - α · ∂J/∂w` |
-| R² score | `1 - SS_res/SS_tot` |
+| Linear model | $\hat{y} = \mathbf{w}^\top \mathbf{x}$ |
+| Cost function | $J = \frac{1}{n} \sum (y - \hat{y})^2$ |
+| Gradient update | $\mathbf{w} \leftarrow \mathbf{w} - \alpha \cdot \frac{\partial J}{\partial \mathbf{w}}$ |
+| R² score | $1 - \frac{SS_{\text{res}}}{SS_{\text{tot}}}$ |
 
 ---
 
 ## 📝 Exercises
 
-1. **Analytical**: Derive the gradient `∂J/∂wⱼ` for MSE from scratch.
+1. **Analytical**: Derive the gradient $\frac{\partial J}{\partial w_j}$ for MSE from scratch.
 2. **Coding**: Add L2 (Ridge) regularization to the `fit()` method.
 3. **Experiment**: Try learning rates [0.001, 0.01, 0.1, 1.0]. What happens?
-4. **Extension**: Implement the Normal Equation `w = (XᵀX)⁻¹ Xᵀy` and compare results.
+4. **Extension**: Implement the Normal Equation $\mathbf{w} = (\mathbf{X}^\top \mathbf{X})^{-1} \mathbf{X}^\top \mathbf{y}$ and compare results.
 
 ---
 
-**← Previous:** [Chapter 01: Intro to ML](chapter-01-intro-to-ml.qmd)  
+**← Previous:** [Chapter 01: Intro to ML](chapter-01-intro-to-ml.qmd)
 **→ Next:** [Chapter 03: Logistic Regression](chapter-03-logistic-regression.qmd)

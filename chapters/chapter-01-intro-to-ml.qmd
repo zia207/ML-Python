@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 01: Introduction to Machine Learning
@@ -20,7 +21,7 @@ code-tools: true
 
 **Machine Learning** is the science of giving computers the ability to learn patterns from data without being explicitly programmed for each rule.
 
-> Traditional programming: `Data + Rules → Output`  
+> Traditional programming: `Data + Rules → Output`
 > Machine learning:       `Data + Output → Rules`
 
 ### A Simple Analogy
@@ -84,7 +85,7 @@ Examples: Game-playing AI, robotics, recommendation systems
 | **Sample** | One row in the dataset (one observation) |
 | **Model** | The mathematical function mapping x → y |
 | **Training** | The process of fitting the model to data |
-| **Parameters (θ)** | The internal values the model learns (weights, biases) |
+| **Parameters ($\theta$)** | The internal values the model learns (weights, biases) |
 | **Hyperparameters** | Settings you choose before training (learning rate, depth) |
 | **Loss / Cost** | How wrong the model's predictions are |
 | **Overfitting** | Model memorizes training data, fails on new data |
@@ -97,16 +98,16 @@ Examples: Game-playing AI, robotics, recommendation systems
 
 | Symbol | Meaning |
 |--------|---------|
-| `n` | Number of training samples |
-| `p` | Number of features |
-| `xᵢ` | Feature vector of the i-th sample |
-| `yᵢ` | True label of the i-th sample |
-| `ŷᵢ` | Predicted label for the i-th sample |
-| `θ` or `w` | Weight/parameter vector |
-| `b` or `w₀` | Bias term |
-| `J(θ)` | Cost function (to be minimized) |
-| `∂J/∂θ` | Partial derivative of cost w.r.t. parameter |
-| `α` | Learning rate (step size in gradient descent) |
+| $n$ | Number of training samples |
+| $p$ | Number of features |
+| $x_i$ | Feature vector of the i-th sample |
+| $y_i$ | True label of the i-th sample |
+| $\hat{y}_i$ | Predicted label for the i-th sample |
+| $\theta$ or $\mathbf{w}$ | Weight/parameter vector |
+| $b$ or $w_0$ | Bias term |
+| $J(\theta)$ | Cost function (to be minimized) |
+| $\partial J / \partial \theta$ | Partial derivative of cost w.r.t. parameter |
+| $\alpha$ | Learning rate (step size in gradient descent) |
 
 ---
 
@@ -117,9 +118,7 @@ Every ML model balances two sources of error:
 - **Bias**: Error from overly simplistic assumptions → *underfitting*
 - **Variance**: Error from sensitivity to small fluctuations in training data → *overfitting*
 
-```
-Total Error = Bias² + Variance + Irreducible Noise
-```
+$$\text{Total Error} = \text{Bias}^2 + \text{Variance} + \text{Irreducible Noise}$$
 
 The goal is to find the "sweet spot" — a model complex enough to capture the pattern, but not so complex it memorizes noise.
 
@@ -189,5 +188,5 @@ This baseline tells us our **minimum** performance bar. Any real ML model must b
 
 ---
 
-**← Previous:** [Chapter 00: Prerequisites](chapter-00-prerequisites.qmd)  
+**← Previous:** [Chapter 00: Prerequisites](chapter-00-prerequisites.qmd)
 **→ Next:** [Chapter 02: Linear Regression](chapter-02-linear-regression.qmd)

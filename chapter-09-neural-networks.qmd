@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: true
 code-tools: true
+jupyter: python3
 ---
 
 ::: {.callout-note appearance="minimal"}
@@ -76,7 +77,7 @@ Where `⊙` is element-wise multiplication and `f'` is the derivative of the act
 
 ## 9.5 From-Scratch Python Implementation
 
-```python
+```{python}
 # neural_network.py
 import math, random
 

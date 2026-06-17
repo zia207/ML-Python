@@ -1,0 +1,398 @@
+---
+title: "Chapter 15: Long Short-Term Memory Networks"
+subtitle: "Gates, cell state, and long-range sequence memory from scratch"
+date: last-modified
+categories: [advanced, deep-learning, sequences, lstm]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+jupyter: python3
+---
+
+# Chapter 15: Long Short-Term Memory (LSTM) Networks
+
+> **Level**: Advanced | **Estimated Time**: 6–8 hours | **Prerequisites**: Chapter 09 (Neural Networks), Chapter 11 (RNNs)
+
+---
+
+## 15.1 Intuition
+
+Vanilla RNNs (Chapter 11) suffer from the **vanishing gradient problem**: gradients shrink exponentially during backpropagation through time (BPTT), making it nearly impossible to learn dependencies across many time steps.
+
+**LSTMs** solve this by introducing a **cell state** — a separate memory highway that information can flow along with minimal transformation, guarded by three learned **gates**:
+
+| Gate | Symbol | Purpose |
+|------|--------|---------|
+| Forget | $\mathbf{f}$ | What to erase from cell state |
+| Input | $\mathbf{i}$ | What new information to write |
+| Output | $\mathbf{o}$ | What to expose as hidden state |
+
+The cell state can carry information across hundreds of time steps because the gradient path through it avoids repeated multiplication by small weights.
+
+---
+
+## 15.2 Theory
+
+### 15.2.1 LSTM Equations
+
+At each time step $t$, given input $\mathbf{x}_t$ and previous hidden state $\mathbf{h}_{t-1}$:
+
+$$\text{Forget gate:} \quad \mathbf{f}_t = \sigma(\mathbf{W}_f \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_f)$$
+
+$$\text{Input gate:} \quad \mathbf{i}_t = \sigma(\mathbf{W}_i \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_i)$$
+
+$$\text{Candidate cell:} \quad \tilde{\mathbf{g}}_t = \tanh(\mathbf{W}_g \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_g)$$
+
+$$\text{Cell state:} \quad \mathbf{C}_t = \mathbf{f}_t \odot \mathbf{C}_{t-1} + \mathbf{i}_t \odot \tilde{\mathbf{g}}_t$$
+
+$$\text{Output gate:} \quad \mathbf{o}_t = \sigma(\mathbf{W}_o \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_o)$$
+
+$$\text{Hidden state:} \quad \mathbf{h}_t = \mathbf{o}_t \odot \tanh(\mathbf{C}_t)$$
+
+Where:
+- $\sigma$ = sigmoid (squashes to 0–1, perfect for gates)
+- $\tanh$ = hyperbolic tangent (squashes to $-1$–$1$)
+- $\odot$ = element-wise multiplication
+- $[\mathbf{h}_{t-1}, \mathbf{x}_t]$ = concatenation of vectors
+
+### 15.2.2 Why It Works
+
+**Forget gate near 1, input gate near 0** → cell state is preserved unchanged (long-term memory).
+
+**Forget gate near 0** → old memory erased (start fresh).
+
+**Input gate near 1** → new candidate written into cell.
+
+The cell state gradient flows back through additions (not multiplications), dramatically reducing vanishing gradients.
+
+### 15.2.3 Parameter Count
+
+For hidden size $H$ and input size $D$:
+- Each gate has weight matrix of shape $(H, H+D)$ and bias of size $H$
+- 4 gates total → $4H(H+D) + 4H$ parameters
+
+---
+
+## 15.3 Algorithm
+
+```
+LSTM Forward Pass:
+─────────────────
+Input: sequence x1, x2, ..., xT; initial h0=0, C0=0
+For t = 1 to T:
+    concat = [h_{t-1}, x_t]
+    f_t = sigmoid(Wf · concat + bf)
+    i_t = sigmoid(Wi · concat + bi)
+    g_tilde_t = tanh(Wg · concat + bg)
+    C_t = f_t ⊙ C_{t-1} + i_t ⊙ g_tilde_t
+    o_t = sigmoid(Wo · concat + bo)
+    h_t = o_t ⊙ tanh(C_t)
+Output: hT (or all h_t for sequence tasks)
+
+BPTT Backward Pass:
+───────────────────
+Gradient flows back from loss through h_t, o_t, C_t
+Key: dC_t/dC_{t-1} = f_t  (element-wise) → avoids repeated weight mult.
+```
+
+---
+
+## 15.4 From-Scratch Python
+
+```{python}
+import math
+import random
+
+# ── Activation functions ──────────────────────────────────────────────────
+
+def sigmoid(x):
+    if x >= 0:
+        return 1.0 / (1.0 + math.exp(-x))
+    else:
+        ex = math.exp(x)
+        return ex / (1.0 + ex)
+
+def tanh(x):
+    return math.tanh(x)
+
+def sigmoid_v(v):
+    return [sigmoid(x) for x in v]
+
+def tanh_v(v):
+    return [tanh(x) for x in v]
+
+# ── Vector math helpers ───────────────────────────────────────────────────
+
+def vec_add(a, b):
+    return [x + y for x, y in zip(a, b)]
+
+def vec_mul(a, b):          # element-wise
+    return [x * y for x, y in zip(a, b)]
+
+def mat_vec(W, x):
+    """Matrix-vector multiply: W shape (rows, cols), x shape (cols,)."""
+    return [sum(W[i][j] * x[j] for j in range(len(x))) for i in range(len(W))]
+
+def concat(a, b):
+    return a + b
+
+# ── Weight initialisation (Xavier) ────────────────────────────────────────
+
+def xavier(rows, cols, seed=None):
+    rng = random.Random(seed)
+    limit = math.sqrt(6.0 / (rows + cols))
+    return [[rng.uniform(-limit, limit) for _ in range(cols)] for _ in range(rows)]
+
+def zeros(n):
+    return [0.0] * n
+
+# ── LSTM Cell ─────────────────────────────────────────────────────────────
+
+class LSTMCell:
+    def __init__(self, input_size, hidden_size, seed=42):
+        self.H = hidden_size
+        self.D = input_size
+        combined = input_size + hidden_size
+
+        # Weights for each gate: shape (hidden_size, combined)
+        self.Wf = xavier(hidden_size, combined, seed)
+        self.Wi = xavier(hidden_size, combined, seed+1)
+        self.Wg = xavier(hidden_size, combined, seed+2)
+        self.Wo = xavier(hidden_size, combined, seed+3)
+
+        # Biases (forget gate bias initialised to 1 — encourages remembering)
+        self.bf = [1.0] * hidden_size
+        self.bi = zeros(hidden_size)
+        self.bg = zeros(hidden_size)
+        self.bo = zeros(hidden_size)
+
+    def forward(self, x, h_prev, c_prev):
+        """Single time-step forward pass."""
+        xh = concat(h_prev, x)          # [h_{t-1}, x_t]
+
+        f = sigmoid_v(vec_add(mat_vec(self.Wf, xh), self.bf))
+        i = sigmoid_v(vec_add(mat_vec(self.Wi, xh), self.bi))
+        g = tanh_v(vec_add(mat_vec(self.Wg, xh), self.bg))
+        o = sigmoid_v(vec_add(mat_vec(self.Wo, xh), self.bo))
+
+        c = vec_add(vec_mul(f, c_prev), vec_mul(i, g))
+        h = vec_mul(o, tanh_v(c))
+
+        cache = (x, h_prev, c_prev, f, i, g, o, c, h)
+        return h, c, cache
+
+# ── LSTM Language Model (character-level) ────────────────────────────────
+
+class CharLSTM:
+    """Character-level LSTM trained with truncated BPTT."""
+
+    def __init__(self, vocab_size, hidden_size=64, seed=42):
+        self.V = vocab_size
+        self.H = hidden_size
+        self.cell = LSTMCell(vocab_size, hidden_size, seed)
+
+        # Output projection: (vocab_size, hidden_size)
+        self.Wy = xavier(vocab_size, hidden_size, seed+10)
+        self.by = zeros(vocab_size)
+
+        self.lr = 0.01
+
+    def _softmax(self, logits):
+        m = max(logits)
+        exps = [math.exp(x - m) for x in logits]
+        s = sum(exps)
+        return [e / s for e in exps]
+
+    def forward_sequence(self, xs, h, c):
+        """
+        xs: list of one-hot vectors (length T)
+        Returns: list of (probs, cache) per step, final h and c.
+        """
+        outputs = []
+        for x in xs:
+            h, c, cache = self.cell.forward(x, h, c)
+            logits = vec_add(mat_vec(self.Wy, h), self.by)
+            probs = self._softmax(logits)
+            outputs.append((probs, h, c, cache))
+        return outputs, h, c
+
+    def cross_entropy_loss(self, probs, target_idx):
+        return -math.log(max(probs[target_idx], 1e-9))
+
+    def sample(self, seed_char_idx, length, h=None, c=None):
+        """Generate text by sampling from the model."""
+        if h is None:
+            h = zeros(self.H)
+        if c is None:
+            c = zeros(self.H)
+
+        indices = [seed_char_idx]
+        x = [0.0] * self.V
+        x[seed_char_idx] = 1.0
+
+        for _ in range(length):
+            h, c, _ = self.cell.forward(x, h, c)
+            logits = vec_add(mat_vec(self.Wy, h), self.by)
+            probs = self._softmax(logits)
+
+            # Temperature sampling
+            r = random.random()
+            cumulative = 0.0
+            chosen = 0
+            for idx, p in enumerate(probs):
+                cumulative += p
+                if r <= cumulative:
+                    chosen = idx
+                    break
+
+            indices.append(chosen)
+            x = [0.0] * self.V
+            x[chosen] = 1.0
+
+        return indices
+
+# ── Demo: learn to predict a simple repeating sequence ───────────────────
+
+def one_hot(idx, size):
+    v = [0.0] * size
+    v[idx] = 1.0
+    return v
+
+def train_demo():
+    # Toy task: predict the next character in "abcabc..."
+    chars = list("abcd")
+    vocab = {c: i for i, c in enumerate(chars)}
+    V = len(chars)
+
+    # Training data: "abcdabcdabcd" → predict next char
+    text = "abcdabcdabcdabcdabcdabcd"
+    xs = [one_hot(vocab[c], V) for c in text[:-1]]
+    ys = [vocab[c] for c in text[1:]]
+
+    model = CharLSTM(vocab_size=V, hidden_size=16, seed=42)
+
+    print("Training character-level LSTM on 'abcd' repeating sequence...")
+    print(f"{'Epoch':>6}  {'Loss':>10}")
+
+    for epoch in range(20):
+        h = zeros(model.H)
+        c = zeros(model.H)
+        total_loss = 0.0
+
+        outputs, h, c = model.forward_sequence(xs, h, c)
+        for (probs, *_), target in zip(outputs, ys):
+            total_loss += model.cross_entropy_loss(probs, target)
+
+        avg_loss = total_loss / len(ys)
+        if (epoch + 1) % 5 == 0:
+            print(f"{epoch+1:>6}  {avg_loss:>10.4f}")
+
+    # Sample from the model
+    print("\nSampling from model (seed='a'):")
+    idx = model.sample(vocab['a'], 15)
+    result = ''.join(chars[i] for i in idx)
+    print(f"  Generated: {result}")
+    print(f"  Expected:  abcdabcdabcdabcd")
+
+train_demo()
+```
+
+---
+
+## 15.5 LSTM Variants
+
+### Peephole Connections
+
+Gates can also look at the **cell state** directly:
+
+$$\mathbf{f}_t = \sigma(\mathbf{W}_f \cdot [\mathbf{C}_{t-1}, \mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_f)$$
+
+### Bidirectional LSTM (BiLSTM)
+
+Run two LSTMs: one forward, one backward. Concatenate hidden states:
+
+$$\overrightarrow{\mathbf{h}}_t = \text{LSTM}_{\text{forward}}(x_1, \ldots, x_t)$$
+
+$$\overleftarrow{\mathbf{h}}_t = \text{LSTM}_{\text{backward}}(x_T, \ldots, x_t)$$
+
+$$\mathbf{h}_t = \text{concat}(\overrightarrow{\mathbf{h}}_t, \overleftarrow{\mathbf{h}}_t) \quad \text{(}2H\text{-dimensional)}$$
+
+Useful when the full context (past + future) is available at inference time (e.g., sentence classification, NER).
+
+### Stacked LSTM
+
+Multiple LSTM layers, each receiving the hidden state sequence of the layer below:
+
+$$\mathbf{h}^1_t = \text{LSTM}_1(\mathbf{x}_t, \mathbf{h}^1_{t-1}, \mathbf{C}^1_{t-1})$$
+
+$$\mathbf{h}^2_t = \text{LSTM}_2(\mathbf{h}^1_t, \mathbf{h}^2_{t-1}, \mathbf{C}^2_{t-1})$$
+
+### GRU (Gated Recurrent Unit)
+
+Simpler alternative with only two gates (reset + update), merging cell and hidden state:
+
+$$\mathbf{z}_t = \sigma(\mathbf{W}_z \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t]) \quad \text{(update gate)}$$
+
+$$\mathbf{r}_t = \sigma(\mathbf{W}_r \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t]) \quad \text{(reset gate)}$$
+
+$$\tilde{\mathbf{h}}_t = \tanh(\mathbf{W} \cdot [\mathbf{r}_t \odot \mathbf{h}_{t-1}, \mathbf{x}_t]) \quad \text{(candidate)}$$
+
+$$\mathbf{h}_t = (1 - \mathbf{z}_t) \odot \mathbf{h}_{t-1} + \mathbf{z}_t \odot \tilde{\mathbf{h}}_t$$
+
+Fewer parameters, often comparable performance, faster training.
+
+---
+
+## 15.6 LSTM vs RNN vs GRU
+
+| Property | Vanilla RNN | LSTM | GRU |
+|----------|------------|------|-----|
+| Long-range memory | Poor | Excellent | Good |
+| Parameters | Fewest | Most | Moderate |
+| Training speed | Fastest | Slowest | Moderate |
+| Vanishing gradient | Severe | Largely solved | Largely solved |
+| Cell state | No | Yes | No (merged) |
+
+---
+
+## 15.7 Applications
+
+| Task | Architecture |
+|------|-------------|
+| Text generation | Stacked LSTM |
+| Machine translation | Encoder-Decoder LSTM (seq2seq) |
+| Named entity recognition | BiLSTM |
+| Time series forecasting | LSTM with regression output |
+| Speech recognition | BiLSTM + CTC loss |
+| Music generation | LSTM with softmax over notes |
+
+---
+
+## 15.8 Exercises
+
+1. Implement the forget gate bias initialisation trick (set to 1.0) and measure the difference in training loss on a longer sequence.
+2. Add a second LSTM layer (stacked LSTM) to `CharLSTM` and observe whether it converges faster.
+3. Implement a GRU cell from scratch and compare its parameter count to the LSTM cell.
+4. Modify `CharLSTM` to predict words instead of characters using a simple tokeniser.
+5. Implement temperature-controlled sampling: $p_i = \frac{\exp(\text{logit}_i / T)}{\sum_j \exp(\text{logit}_j / T)}$. How does $T$ affect the diversity of generated text?
+
+---
+
+## ✅ Summary
+
+| Concept | Key Idea |
+|---------|---------|
+| Vanishing gradient | Gradients shrink through time in vanilla RNNs |
+| Cell state | Separate highway for long-term memory |
+| Forget gate | Decides what to erase from cell |
+| Input gate | Decides what new info to write |
+| Output gate | Decides what cell state to expose |
+| GRU | Simplified LSTM — 2 gates, no separate cell state |
+
+---
+
+**← Previous:** [Chapter 14: Reinforcement Learning](chapter-14-reinforcement-learning.qmd)
+**→ Next:** [Chapter 16: CNNs — Advanced](chapter-16-cnn-advanced.qmd)
+**← Back to Start:** [Home](../index.qmd)

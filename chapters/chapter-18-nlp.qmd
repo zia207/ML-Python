@@ -1,0 +1,592 @@
+---
+title: "Chapter 18: Natural Language Processing"
+subtitle: "Tokenisation, TF-IDF, word embeddings, attention, and transformers from scratch"
+date: last-modified
+categories: [advanced, deep-learning, nlp, transformers]
+toc: true
+toc-depth: 3
+number-sections: false
+code-fold: false
+code-tools: true
+jupyter: python3
+---
+
+# Chapter 18: Natural Language Processing (NLP)
+
+> **Level**: Advanced | **Estimated Time**: 8–10 hours | **Prerequisites**: Chapter 09 (Neural Networks), Chapter 15 (LSTM)
+
+---
+
+## 18.1 Intuition
+
+Language is discrete, variable-length, and context-dependent. The key challenges:
+
+1. **Representing text** — convert words to numbers without losing meaning
+2. **Capturing context** — "bank" means different things in "river bank" vs "bank account"
+3. **Handling variable length** — sentences have different numbers of words
+4. **Long-range dependencies** — a pronoun might refer to a noun 50 words back
+
+This chapter builds the NLP stack from scratch: tokenisation → bag-of-words → TF-IDF → word2vec → attention → the Transformer architecture.
+
+---
+
+## 18.2 Text Preprocessing
+
+### 18.2.1 Tokenisation
+
+```{python}
+import math
+import random
+import re
+from collections import Counter, defaultdict
+
+def tokenise(text, lower=True):
+    """Split text into word tokens."""
+    if lower:
+        text = text.lower()
+    # Keep only alphanumeric and apostrophe
+    tokens = re.findall(r"[a-z0-9']+", text)
+    return tokens
+
+def build_vocab(corpus, min_freq=1, max_size=None):
+    """
+    corpus: list of token lists
+    Returns: word→idx dict and idx→word list
+    """
+    freq = Counter(tok for sentence in corpus for tok in sentence)
+    vocab_words = [w for w, c in freq.most_common(max_size) if c >= min_freq]
+
+    # Special tokens
+    specials = ['<PAD>', '<UNK>', '<BOS>', '<EOS>']
+    vocab_words = specials + vocab_words
+
+    word2idx = {w: i for i, w in enumerate(vocab_words)}
+    idx2word = vocab_words
+    return word2idx, idx2word
+
+# Demo
+sentences = [
+    "the cat sat on the mat",
+    "the dog sat on the log",
+    "cats and dogs are great pets",
+]
+corpus = [tokenise(s) for s in sentences]
+word2idx, idx2word = build_vocab(corpus, min_freq=1)
+
+print("=== Tokenisation & Vocabulary ===")
+print(f"Corpus sentences: {len(corpus)}")
+print(f"Vocabulary size:  {len(word2idx)}")
+print(f"Sample tokens:    {corpus[0]}")
+print(f"Encoded:          {[word2idx.get(t, word2idx['<UNK>']) for t in corpus[0]]}")
+```
+
+### 18.2.2 Byte-Pair Encoding (BPE)
+
+BPE is a subword tokenisation algorithm used by GPT-2, RoBERTa, etc. It starts with characters and merges the most frequent adjacent pairs:
+
+```{python}
+def learn_bpe(corpus_str, num_merges=20):
+    """
+    Simplified BPE on a string corpus.
+    Returns vocabulary and list of merge rules.
+    """
+    # Start with character-level tokens (word boundaries marked with </w>)
+    vocab = Counter()
+    for word in corpus_str.lower().split():
+        vocab[' '.join(list(word)) + ' </w>'] += 1
+
+    merges = []
+    for _ in range(num_merges):
+        # Count adjacent pairs
+        pairs = Counter()
+        for word, freq in vocab.items():
+            symbols = word.split()
+            for i in range(len(symbols) - 1):
+                pairs[(symbols[i], symbols[i+1])] += freq
+
+        if not pairs:
+            break
+
+        best_pair = max(pairs, key=pairs.get)
+        merges.append(best_pair)
+
+        # Merge best pair in all words
+        new_vocab = Counter()
+        bigram = ' '.join(best_pair)
+        replacement = ''.join(best_pair)
+        for word, freq in vocab.items():
+            new_word = word.replace(bigram, replacement)
+            new_vocab[new_word] += freq
+        vocab = new_vocab
+
+    return vocab, merges
+
+text = "the cat sat on the mat the dog sat on the log"
+vocab, merges = learn_bpe(text, num_merges=10)
+print(f"\n=== BPE (10 merges) ===")
+print(f"First 5 merge rules: {merges[:5]}")
+print(f"Sample vocab entries: {list(vocab.items())[:5]}")
+```
+
+---
+
+## 18.3 Bag of Words and TF-IDF
+
+### 18.3.1 Bag of Words
+
+Represent each document as a vector of word counts:
+
+```{python}
+def bag_of_words(tokens, word2idx):
+    V = len(word2idx)
+    vec = [0] * V
+    for tok in tokens:
+        idx = word2idx.get(tok, word2idx.get('<UNK>', 1))
+        vec[idx] += 1
+    return vec
+
+bows = [bag_of_words(s, word2idx) for s in corpus]
+print(f"\n=== Bag of Words ===")
+print(f"BoW vector for sentence 0 (non-zero entries):")
+for i, count in enumerate(bows[0]):
+    if count > 0:
+        print(f"  '{idx2word[i]}': {count}")
+```
+
+### 18.3.2 TF-IDF
+
+**TF** (term frequency): how often a word appears in a document.
+**IDF** (inverse document frequency): penalises words that appear in many documents (common → less informative).
+
+$$\text{TF}(t, d) = \frac{\text{count}(t \text{ in } d)}{\text{total\_words}(d)}$$
+
+$$\text{IDF}(t, D) = \log\!\frac{|D|}{\text{df}(t)} \quad \text{where } \text{df}(t) = \text{number of docs containing } t$$
+
+$$\text{TF-IDF} = \text{TF} \times \text{IDF}$$
+
+```{python}
+def tfidf(corpus_tokens, word2idx):
+    """Compute TF-IDF matrix: (num_docs × vocab_size)."""
+    V = len(word2idx)
+    N = len(corpus_tokens)
+
+    # Document frequency
+    df = [0] * V
+    for tokens in corpus_tokens:
+        seen = set()
+        for tok in tokens:
+            idx = word2idx.get(tok, 1)
+            if idx not in seen:
+                df[idx] += 1
+                seen.add(idx)
+
+    idf = [math.log((N + 1) / (d + 1)) + 1 for d in df]  # smoothed
+
+    # TF-IDF per document
+    matrix = []
+    for tokens in corpus_tokens:
+        total = len(tokens)
+        tf = [0.0] * V
+        for tok in tokens:
+            idx = word2idx.get(tok, 1)
+            tf[idx] += 1.0 / total
+        row = [tf[i] * idf[i] for i in range(V)]
+        # L2 normalise
+        norm = math.sqrt(sum(x*x for x in row)) + 1e-9
+        row = [x / norm for x in row]
+        matrix.append(row)
+
+    return matrix, idf
+
+tfidf_matrix, idf_vec = tfidf(corpus, word2idx)
+
+# Cosine similarity between documents
+def cosine_sim(a, b):
+    dot = sum(x*y for x,y in zip(a,b))
+    na = math.sqrt(sum(x*x for x in a))
+    nb = math.sqrt(sum(x*x for x in b))
+    return dot / (na * nb + 1e-9)
+
+print(f"\n=== TF-IDF Cosine Similarities ===")
+print(f"  Doc0 vs Doc1 (both about sitting): {cosine_sim(tfidf_matrix[0], tfidf_matrix[1]):.3f}")
+print(f"  Doc0 vs Doc2 (different topic):    {cosine_sim(tfidf_matrix[0], tfidf_matrix[2]):.3f}")
+```
+
+---
+
+## 18.4 Word Embeddings (Word2Vec Skip-gram)
+
+TF-IDF treats words as independent. **Word2Vec** learns dense vector representations where semantically similar words are close:
+
+```
+king - man + woman ≈ queen
+```
+
+### Skip-gram Objective
+
+Given a centre word **w**, predict its context words within a window:
+
+$$\text{Maximise:} \quad \sum_{(w,c)} \log P(c \mid w)$$
+
+$$P(c \mid w) = \frac{\exp(\mathbf{v}_w \cdot \mathbf{u}_c)}{\sum_{v} \exp(\mathbf{v}_w \cdot \mathbf{u}_v)}$$
+
+Where **v_w** is the "centre" embedding and **u_c** is the "context" embedding.
+
+**Negative sampling** approximates the denominator: instead of summing over the full vocabulary, sample K random negative words.
+
+```{python}
+class Word2Vec:
+    """Skip-gram with negative sampling from scratch."""
+
+    def __init__(self, vocab_size, embed_dim=16, seed=42):
+        rng = random.Random(seed)
+        scale = 0.01
+        self.V = vocab_size
+        self.D = embed_dim
+        # Centre embeddings
+        self.W_in  = [[rng.gauss(0, scale) for _ in range(embed_dim)]
+                      for _ in range(vocab_size)]
+        # Context embeddings
+        self.W_out = [[rng.gauss(0, scale) for _ in range(embed_dim)]
+                      for _ in range(vocab_size)]
+
+    def _dot(self, a, b):
+        return sum(x*y for x,y in zip(a, b))
+
+    def _sigmoid(self, x):
+        return 1.0 / (1.0 + math.exp(-max(-30, min(30, x))))
+
+    def train_pair(self, center_idx, pos_idx, neg_indices, lr=0.025):
+        """One gradient update for a (center, positive, negatives) triple."""
+        v_c = self.W_in[center_idx]
+        u_p = self.W_out[pos_idx]
+
+        # Positive pair: maximise σ(v_c · u_p)
+        score_pos = self._sigmoid(self._dot(v_c, u_p))
+        grad_pos  = (score_pos - 1.0)  # d/d(dot) of -log σ(dot)
+
+        # Update context embedding (positive)
+        for k in range(self.D):
+            self.W_out[pos_idx][k] -= lr * grad_pos * v_c[k]
+
+        # Accumulate gradient for centre embedding
+        grad_center = [grad_pos * u_p[k] for k in range(self.D)]
+
+        # Negative pairs: minimise σ(v_c · u_n)
+        for neg_idx in neg_indices:
+            u_n = self.W_out[neg_idx]
+            score_neg = self._sigmoid(self._dot(v_c, u_n))
+            for k in range(self.D):
+                self.W_out[neg_idx][k] -= lr * score_neg * v_c[k]
+                grad_center[k] += score_neg * u_n[k]
+
+        # Update centre embedding
+        for k in range(self.D):
+            self.W_in[center_idx][k] -= lr * grad_center[k]
+
+    def get_embedding(self, word_idx):
+        return self.W_in[word_idx]
+
+    def most_similar(self, word_idx, top_k=3):
+        target = self.W_in[word_idx]
+        scores = []
+        for i in range(self.V):
+            if i == word_idx:
+                continue
+            dot = self._dot(target, self.W_in[i])
+            norm_t = math.sqrt(self._dot(target, target)) + 1e-9
+            norm_i = math.sqrt(self._dot(self.W_in[i], self.W_in[i])) + 1e-9
+            scores.append((dot / (norm_t * norm_i), i))
+        scores.sort(reverse=True)
+        return [(idx2word[i], s) for s, i in scores[:top_k]]
+
+def generate_skipgram_pairs(corpus, word2idx, window=2, neg_k=5, seed=42):
+    pairs = []
+    rng = random.Random(seed)
+    V = len(word2idx)
+    for sentence in corpus:
+        ids = [word2idx.get(t, 1) for t in sentence]
+        for i, center in enumerate(ids):
+            context = ids[max(0,i-window):i] + ids[i+1:i+window+1]
+            for pos in context:
+                negs = [rng.randint(4, V-1) for _ in range(neg_k)]  # skip specials
+                pairs.append((center, pos, negs))
+    return pairs
+
+# Train on toy corpus
+bigger_corpus = corpus * 50  # repeat for more signal
+pairs = generate_skipgram_pairs(bigger_corpus, word2idx, window=2, neg_k=5)
+
+model_w2v = Word2Vec(vocab_size=len(word2idx), embed_dim=8, seed=0)
+
+rng = random.Random(42)
+rng.shuffle(pairs)
+
+print(f"\n=== Word2Vec Skip-gram ===")
+print(f"Training on {len(pairs)} (center, context, negatives) pairs...")
+
+for center, pos, negs in pairs:
+    model_w2v.train_pair(center, pos, negs, lr=0.05)
+
+# Show similar words
+target = 'cat'
+if target in word2idx:
+    similar = model_w2v.most_similar(word2idx[target], top_k=3)
+    print(f"Words most similar to '{target}': {similar}")
+```
+
+---
+
+## 18.5 Attention Mechanism
+
+Attention allows the model to focus on different parts of the input when producing each output token.
+
+### Scaled Dot-Product Attention
+
+$$\text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\!\left(\frac{\mathbf{Q} \mathbf{K}^\top}{\sqrt{d_k}}\right) \mathbf{V}$$
+
+- **Q** (queries): what we're looking for
+- **K** (keys): what each position offers
+- **V** (values): what each position returns if attended to
+- $\sqrt{d_k}$ scaling: prevents dot products from growing large and saturating softmax
+
+```{python}
+def scaled_dot_product_attention(Q, K, V, mask=None):
+    """
+    Q: (seq_len_q, d_k)
+    K: (seq_len_k, d_k)
+    V: (seq_len_k, d_v)
+    Returns: (seq_len_q, d_v) attended output
+    """
+    seq_q = len(Q)
+    seq_k = len(K)
+    d_k   = len(Q[0])
+    scale = math.sqrt(d_k)
+
+    # Attention scores: Q K^T / √d_k
+    scores = []
+    for i in range(seq_q):
+        row = []
+        for j in range(seq_k):
+            dot = sum(Q[i][k] * K[j][k] for k in range(d_k))
+            row.append(dot / scale)
+        scores.append(row)
+
+    # Apply mask (causal / padding)
+    if mask:
+        for i in range(seq_q):
+            for j in range(seq_k):
+                if mask[i][j]:
+                    scores[i][j] = -1e9
+
+    # Softmax over keys
+    def softmax_row(row):
+        m = max(row)
+        e = [math.exp(x - m) for x in row]
+        s = sum(e)
+        return [x/s for x in e]
+
+    weights = [softmax_row(row) for row in scores]
+
+    # Weighted sum of values
+    d_v = len(V[0])
+    output = []
+    for i in range(seq_q):
+        out_i = [sum(weights[i][j] * V[j][k] for j in range(seq_k)) for k in range(d_v)]
+        output.append(out_i)
+
+    return output, weights
+
+# Demo: 3 tokens attend to each other
+d_k = 4
+Q = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+K = Q  # self-attention: Q = K = V
+V = Q
+
+out, attn_weights = scaled_dot_product_attention(Q, K, V)
+print(f"\n=== Scaled Dot-Product Attention ===")
+print(f"Attention weights (each row sums to 1):")
+for i, row in enumerate(attn_weights):
+    print(f"  Token {i}: {[round(w,3) for w in row]}")
+```
+
+---
+
+## 18.6 The Transformer
+
+The Transformer (Vaswani et al., 2017) replaces recurrence entirely with **multi-head self-attention**.
+
+### Multi-Head Attention
+
+Run h attention heads in parallel, each with different learned projections, then concatenate:
+
+$$\text{MultiHead}(\mathbf{Q},\mathbf{K},\mathbf{V}) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)\, \mathbf{W}_O$$
+
+$$\text{head}_i = \text{Attention}(\mathbf{Q}\mathbf{W}^Q_i,\; \mathbf{K}\mathbf{W}^K_i,\; \mathbf{V}\mathbf{W}^V_i)$$
+
+### Positional Encoding
+
+Transformers have no recurrence, so position information must be injected:
+
+$$\text{PE}(\text{pos}, 2i) = \sin\!\left(\frac{\text{pos}}{10000^{2i/d_{\text{model}}}}\right)$$
+
+$$\text{PE}(\text{pos}, 2i+1) = \cos\!\left(\frac{\text{pos}}{10000^{2i/d_{\text{model}}}}\right)$$
+
+```{python}
+def positional_encoding(seq_len, d_model):
+    """Sinusoidal positional encodings."""
+    PE = []
+    for pos in range(seq_len):
+        row = []
+        for i in range(d_model):
+            angle = pos / (10000 ** (2 * (i // 2) / d_model))
+            if i % 2 == 0:
+                row.append(math.sin(angle))
+            else:
+                row.append(math.cos(angle))
+        PE.append(row)
+    return PE
+
+pe = positional_encoding(5, 8)
+print(f"\n=== Positional Encoding (5 positions, 8-dim) ===")
+for pos, row in enumerate(pe):
+    print(f"  pos {pos}: {[round(v,3) for v in row]}")
+```
+
+### Transformer Encoder Block
+
+```{python}
+def layer_norm(x, eps=1e-6):
+    """Layer normalisation for a single vector."""
+    mean = sum(x) / len(x)
+    var  = sum((v - mean)**2 for v in x) / len(x)
+    return [(v - mean) / math.sqrt(var + eps) for v in x]
+
+def feed_forward(x, W1, b1, W2, b2):
+    """Two-layer FFN with ReLU."""
+    hidden = [max(0.0, sum(W1[j][k]*x[k] for k in range(len(x))) + b1[j])
+              for j in range(len(W1))]
+    out = [sum(W2[j][k]*hidden[k] for k in range(len(hidden))) + b2[j]
+           for j in range(len(W2))]
+    return out
+
+class TransformerEncoderLayer:
+    def __init__(self, d_model, d_ff, seed=42):
+        rng = random.Random(seed)
+        scale = math.sqrt(2.0 / (d_model + d_ff))
+        # Single-head attention projections (simplified)
+        self.W_Q = [[rng.gauss(0, scale) for _ in range(d_model)] for _ in range(d_model)]
+        self.W_K = [[rng.gauss(0, scale) for _ in range(d_model)] for _ in range(d_model)]
+        self.W_V = [[rng.gauss(0, scale) for _ in range(d_model)] for _ in range(d_model)]
+        # FFN weights
+        self.W1 = [[rng.gauss(0, scale) for _ in range(d_model)] for _ in range(d_ff)]
+        self.b1 = [0.0] * d_ff
+        self.W2 = [[rng.gauss(0, scale) for _ in range(d_ff)] for _ in range(d_model)]
+        self.b2 = [0.0] * d_model
+
+    def _project(self, H, W):
+        return [[sum(W[j][k]*H[i][k] for k in range(len(H[0]))) for j in range(len(W))]
+                for i in range(len(H))]
+
+    def forward(self, H, mask=None):
+        """H: list of seq_len vectors of size d_model."""
+        Q = self._project(H, self.W_Q)
+        K = self._project(H, self.W_K)
+        V = self._project(H, self.W_V)
+
+        # Self-attention + residual + LayerNorm
+        attn_out, _ = scaled_dot_product_attention(Q, K, V, mask)
+        H = [layer_norm([H[i][k] + attn_out[i][k] for k in range(len(H[0]))])
+             for i in range(len(H))]
+
+        # FFN + residual + LayerNorm
+        ffn_out = [feed_forward(h, self.W1, self.b1, self.W2, self.b2) for h in H]
+        H = [layer_norm([H[i][k] + ffn_out[i][k] for k in range(len(H[0]))])
+             for i in range(len(H))]
+
+        return H
+
+# Demo
+d_model, d_ff, seq_len = 8, 16, 4
+rng = random.Random(0)
+tokens = [[rng.gauss(0, 1) for _ in range(d_model)] for _ in range(seq_len)]
+
+# Add positional encoding
+pe = positional_encoding(seq_len, d_model)
+tokens = [[tokens[i][k] + pe[i][k] for k in range(d_model)] for i in range(seq_len)]
+
+encoder = TransformerEncoderLayer(d_model=d_model, d_ff=d_ff, seed=7)
+out = encoder.forward(tokens)
+print(f"\n=== Transformer Encoder Layer ===")
+print(f"Input shape:  {seq_len} × {d_model}")
+print(f"Output shape: {len(out)} × {len(out[0])}")
+print(f"First token output: {[round(v,3) for v in out[0]]}")
+```
+
+---
+
+## 18.7 Classic NLP Tasks
+
+### Text Classification (Naive + TF-IDF)
+
+```{python}
+def classify_tfidf(train_docs, train_labels, test_doc, word2idx):
+    """Nearest-centroid classifier using TF-IDF."""
+    classes = list(set(train_labels))
+    centroids = {}
+    for cls in classes:
+        cls_docs = [d for d, l in zip(train_docs, train_labels) if l == cls]
+        mat, _ = tfidf([tokenise(d) for d in cls_docs], word2idx)
+        V = len(word2idx)
+        centroid = [sum(mat[i][j] for i in range(len(mat))) / len(mat) for j in range(V)]
+        centroids[cls] = centroid
+
+    test_vec = tfidf([tokenise(test_doc)], word2idx)[0][0]
+    best_cls = max(classes, key=lambda c: cosine_sim(test_vec, centroids[c]))
+    return best_cls
+
+train_data = [
+    ("the film was amazing and wonderful", "positive"),
+    ("great movie loved every minute", "positive"),
+    ("terrible film waste of time", "negative"),
+    ("boring and awful not recommended", "negative"),
+]
+train_docs, train_labels = zip(*train_data)
+all_corpus = [tokenise(d) for d in train_docs]
+w2i, i2w = build_vocab(all_corpus, min_freq=1)
+
+test = "loved it great film"
+pred = classify_tfidf(list(train_docs), list(train_labels), test, w2i)
+print(f"\n=== Text Classification ===")
+print(f"Test document: '{test}'")
+print(f"Predicted class: {pred}")
+```
+
+---
+
+## 18.8 Exercises
+
+1. Implement **multi-head attention** by splitting the d_model dimension into h heads, running attention in parallel, and concatenating outputs.
+2. Add a **causal mask** to the `scaled_dot_product_attention` function to prevent position i from attending to positions j > i (needed for autoregressive generation).
+3. Implement **byte-pair encoding** decode (reverse the merges to reconstruct the original text).
+4. Train the Word2Vec model on a larger corpus (e.g., the first 1000 sentences from Project Gutenberg) and use PCA (Chapter 13) to visualise the embeddings in 2D.
+5. Build a character-level Transformer (encoder only) for text classification using the TransformerEncoderLayer.
+
+---
+
+## ✅ Summary
+
+| Concept | Key Idea |
+|---------|---------|
+| Tokenisation | Split text; subword (BPE) handles OOV words |
+| TF-IDF | Frequency-weighted term importance |
+| Word2Vec | Dense embeddings; semantic similarity = cosine distance |
+| Attention | Dynamic weighted sum of values based on query-key match |
+| Transformer | Stack of attention + FFN blocks; no recurrence needed |
+| Positional encoding | Sinusoidal signals inject position info |
+
+---
+
+**← Previous:** [Chapter 17: Graph Neural Networks](chapter-17-gnn.qmd)
+**→ Next:** [Chapter 19: Generative Models](chapter-19-generative-models.qmd)
+**← Back to Start:** [Home](../index.qmd)

@@ -8,54 +8,57 @@ toc-depth: 3
 number-sections: false
 code-fold: true
 code-tools: true
+jupyter: python3
 ---
 
 ::: {.callout-note appearance="minimal"}
-**Level:** 🟢 Beginner &nbsp;|&nbsp; **Estimated Time:** 2–3 hours
+**Level:** 🟢 Beginner  \|  **Estimated Time:** 2–3 hours
 :::
 
-> **Level**: Beginner | **Estimated Time**: 2–3 hours
+> **Level**: Beginner \| **Estimated Time**: 2–3 hours
 
----
+------------------------------------------------------------------------
 
 ## 0.1 What You Need to Know First
 
-This tutorial assumes:
-- Basic Python syntax (variables, loops, functions, lists)
-- High school algebra (equations, functions, graphs)
-- No prior machine learning knowledge required
+This tutorial assumes: - Basic Python syntax (variables, loops, functions, lists) - High school algebra (equations, functions, graphs) - No prior machine learning knowledge required
 
----
+------------------------------------------------------------------------
 
 ## 0.2 Math Refresher
 
 ### Vectors and Matrices
-A **vector** is an ordered list of numbers: `x = [x₁, x₂, ..., xₙ]`  
+
+A **vector** is an ordered list of numbers: `x = [x₁, x₂, ..., xₙ]`\
 A **matrix** is a 2D array of numbers with rows and columns.
 
 **Dot product** (used constantly in ML):
-```
+
+```         
 x · w = x₁w₁ + x₂w₂ + ... + xₙwₙ
 ```
 
 ### Summation Notation
-```
+
+```         
 Σᵢ xᵢ  means  x₁ + x₂ + ... + xₙ
 ```
 
 ### Derivatives (Calculus basics)
-The derivative `df/dx` measures how much `f` changes when `x` changes slightly.  
+
+The derivative `df/dx` measures how much `f` changes when `x` changes slightly.\
 Key rule: if `f(x) = x²`, then `df/dx = 2x`
 
 ### Logarithms
-`log(x)` is the inverse of exponentiation. Used in probability and loss functions.  
+
+`log(x)` is the inverse of exponentiation. Used in probability and loss functions.\
 Key property: `log(a × b) = log(a) + log(b)`
 
----
+------------------------------------------------------------------------
 
 ## 0.3 Python Setup
 
-```bash
+``` bash
 # Recommended: Python 3.9+
 python --version
 
@@ -64,14 +67,14 @@ python --version
 pip install matplotlib
 ```
 
----
+------------------------------------------------------------------------
 
 ## 0.4 Building Our Own Math Utilities (From Scratch)
 
-Throughout this tutorial we will **never use NumPy or scikit-learn** for core algorithms.  
+Throughout this tutorial we will **never use NumPy or scikit-learn** for core algorithms.\
 Here are the basic utilities we will reuse in every chapter:
 
-```python
+```{python}
 # utils.py  — our from-scratch math toolkit
 import math
 
@@ -149,15 +152,13 @@ def softmax(z_list):
     return [e / total for e in exp_z]
 ```
 
----
+------------------------------------------------------------------------
 
 ## 0.5 Understanding Data Representation
 
-In ML, data is structured as:
-- **Feature matrix X**: shape `(n_samples, n_features)` — each row is one observation
-- **Target vector y**: shape `(n_samples,)` — what we want to predict
+In ML, data is structured as: - **Feature matrix X**: shape `(n_samples, n_features)` — each row is one observation - **Target vector y**: shape `(n_samples,)` — what we want to predict
 
-```python
+```{python}
 # Example dataset: house size (sqft) vs price ($1000s)
 X = [
     [800],
@@ -167,13 +168,14 @@ X = [
     [2500],
 ]
 y = [150, 200, 250, 320, 400]  # prices
+print(y)
 ```
 
----
+------------------------------------------------------------------------
 
 ## 0.6 Train/Test Split (From Scratch)
 
-```python
+```{python}
 import random
 
 def train_test_split(X, y, test_ratio=0.2, seed=42):
@@ -190,25 +192,32 @@ def train_test_split(X, y, test_ratio=0.2, seed=42):
     X_test  = [X[i] for i in test_idx]
     y_test  = [y[i] for i in test_idx]
     return X_train, X_test, y_train, y_test
+train_X, test_X, train_y, test_y = train_test_split(X, y)
+print("Train X:", train_X)
+print("Train y:", train_y)
+print("Test X:", test_X)
+print("Test y:", test_y)
 ```
 
----
+------------------------------------------------------------------------
 
 ## 0.7 Feature Normalization
 
 Most ML algorithms work better when features are on the same scale.
 
-**Min-Max Scaling** maps values to [0, 1]:
-```
+**Min-Max Scaling** maps values to \[0, 1\]:
+
+```         
 x_scaled = (x - x_min) / (x_max - x_min)
 ```
 
 **Z-score Standardization** maps to mean=0, std=1:
-```
+
+```         
 x_std = (x - μ) / σ
 ```
 
-```python
+```{python}
 def min_max_scale(X):
     """Scale each feature column to [0, 1]."""
     n_features = len(X[0])
@@ -224,26 +233,26 @@ def min_max_scale(X):
     return scaled, mins, maxs
 ```
 
----
+------------------------------------------------------------------------
 
 ## ✅ Chapter Summary
 
-| Concept | Key Takeaway |
-|---------|-------------|
-| Vectors/Matrices | Core data structures for ML |
-| Dot product | Foundation of most ML computations |
-| Derivatives | Needed for gradient-based learning |
-| Feature matrix | Rows = samples, Columns = features |
-| Normalization | Essential preprocessing step |
+| Concept          | Key Takeaway                       |
+|------------------|------------------------------------|
+| Vectors/Matrices | Core data structures for ML        |
+| Dot product      | Foundation of most ML computations |
+| Derivatives      | Needed for gradient-based learning |
+| Feature matrix   | Rows = samples, Columns = features |
+| Normalization    | Essential preprocessing step       |
 
----
+------------------------------------------------------------------------
 
 ## 📝 Exercises
 
-1. Implement a `euclidean_distance(v1, v2)` function using only Python built-ins.
-2. Write a function `normalize_column(data, col_idx)` that z-score normalizes a single column.
-3. Create a 3×3 identity matrix using list comprehensions.
+1.  Implement a `euclidean_distance(v1, v2)` function using only Python built-ins.
+2.  Write a function `normalize_column(data, col_idx)` that z-score normalizes a single column.
+3.  Create a 3×3 identity matrix using list comprehensions.
 
----
+------------------------------------------------------------------------
 
 **Next Chapter →** [Chapter 01: Introduction to Machine Learning](chapter-01-intro-to-ml.md)

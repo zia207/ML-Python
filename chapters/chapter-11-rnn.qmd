@@ -8,6 +8,7 @@ toc-depth: 3
 number-sections: false
 code-fold: false
 code-tools: true
+jupyter: python3
 ---
 
 # Chapter 11: Recurrent Neural Networks (RNNs)
@@ -26,30 +27,28 @@ RNNs maintain a **hidden state** that acts as memory, passed from one time step 
 
 ## 11.2 The Vanilla RNN
 
-At each time step t:
-```
-hₜ = tanh(Wₓₓ · xₜ + Wₕₕ · hₜ₋₁ + bₕ)
-yₜ = Wᵧₕ · hₜ + bᵧ
-```
+At each time step $t$:
+
+$$\mathbf{h}_t = \tanh(\mathbf{W}_{xh} \cdot \mathbf{x}_t + \mathbf{W}_{hh} \cdot \mathbf{h}_{t-1} + \mathbf{b}_h)$$
+
+$$\mathbf{y}_t = \mathbf{W}_{yh} \cdot \mathbf{h}_t + \mathbf{b}_y$$
 
 Where:
-- `xₜ` — input at step t
-- `hₜ` — hidden state (memory) at step t
-- `yₜ` — output at step t
-- `Wₓₓ, Wₕₕ, Wᵧₕ` — weight matrices (shared across all time steps!)
+- $\mathbf{x}_t$ — input at step $t$
+- $\mathbf{h}_t$ — hidden state (memory) at step $t$
+- $\mathbf{y}_t$ — output at step $t$
+- $\mathbf{W}_{xh}, \mathbf{W}_{hh}, \mathbf{W}_{yh}$ — weight matrices (shared across all time steps!)
 
 ---
 
 ## 11.3 The Vanishing Gradient Problem
 
-During backpropagation through time (BPTT), gradients are multiplied by Wₕₕ at each step.
+During backpropagation through time (BPTT), gradients are multiplied by $\mathbf{W}_{hh}$ at each step.
 
-```
-∂L/∂h₁ = ∂L/∂hₜ · (Wₕₕ)^(t-1) · ...
-```
+$$\frac{\partial L}{\partial \mathbf{h}_1} = \frac{\partial L}{\partial \mathbf{h}_t} \cdot (\mathbf{W}_{hh})^{t-1} \cdot \ldots$$
 
-If the largest eigenvalue of Wₕₕ < 1: gradients **vanish** → model can't learn long-range dependencies.  
-If > 1: gradients **explode**.
+If the largest eigenvalue of $\mathbf{W}_{hh} < 1$: gradients **vanish** → model can't learn long-range dependencies.
+If $> 1$: gradients **explode**.
 
 **Solution**: LSTM (Long Short-Term Memory) and GRU cells.
 
@@ -57,18 +56,21 @@ If > 1: gradients **explode**.
 
 ## 11.4 LSTM: Long Short-Term Memory
 
-LSTM introduces a **cell state** (Cₜ) — a separate "conveyor belt" of memory — plus three gates:
+LSTM introduces a **cell state** ($\mathbf{C}_t$) — a separate "conveyor belt" of memory — plus three gates:
 
-```
-Forget gate:  fₜ = σ(Wf · [hₜ₋₁, xₜ] + bf)      # what to forget
-Input gate:   iₜ = σ(Wi · [hₜ₋₁, xₜ] + bi)       # what to update
-Candidate:    C̃ₜ = tanh(Wc · [hₜ₋₁, xₜ] + bc)    # new candidate values
-Cell update:  Cₜ = fₜ ⊙ Cₜ₋₁ + iₜ ⊙ C̃ₜ
-Output gate:  oₜ = σ(Wo · [hₜ₋₁, xₜ] + bo)
-Hidden state: hₜ = oₜ ⊙ tanh(Cₜ)
-```
+$$\text{Forget gate:} \quad \mathbf{f}_t = \sigma(\mathbf{W}_f \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_f)$$
 
-The cell state `Cₜ` flows through time with only element-wise operations → gradients can flow freely over long distances.
+$$\text{Input gate:} \quad \mathbf{i}_t = \sigma(\mathbf{W}_i \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_i)$$
+
+$$\text{Candidate:} \quad \tilde{\mathbf{C}}_t = \tanh(\mathbf{W}_C \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_C)$$
+
+$$\text{Cell update:} \quad \mathbf{C}_t = \mathbf{f}_t \odot \mathbf{C}_{t-1} + \mathbf{i}_t \odot \tilde{\mathbf{C}}_t$$
+
+$$\text{Output gate:} \quad \mathbf{o}_t = \sigma(\mathbf{W}_o \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t] + \mathbf{b}_o)$$
+
+$$\text{Hidden state:} \quad \mathbf{h}_t = \mathbf{o}_t \odot \tanh(\mathbf{C}_t)$$
+
+The cell state $\mathbf{C}_t$ flows through time with only element-wise operations → gradients can flow freely over long distances.
 
 ---
 
@@ -220,12 +222,14 @@ if __name__ == "__main__":
 ## 11.6 GRU: Gated Recurrent Unit
 
 A simpler alternative to LSTM with only two gates:
-```
-Update gate: zₜ = σ(Wz · [hₜ₋₁, xₜ])
-Reset gate:  rₜ = σ(Wr · [hₜ₋₁, xₜ])
-Candidate:   h̃ₜ = tanh(W · [rₜ⊙hₜ₋₁, xₜ])
-New state:   hₜ = (1 - zₜ)⊙hₜ₋₁ + zₜ⊙h̃ₜ
-```
+
+$$\mathbf{z}_t = \sigma(\mathbf{W}_z \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t]) \quad \text{(update gate)}$$
+
+$$\mathbf{r}_t = \sigma(\mathbf{W}_r \cdot [\mathbf{h}_{t-1}, \mathbf{x}_t]) \quad \text{(reset gate)}$$
+
+$$\tilde{\mathbf{h}}_t = \tanh(\mathbf{W} \cdot [\mathbf{r}_t \odot \mathbf{h}_{t-1}, \mathbf{x}_t]) \quad \text{(candidate)}$$
+
+$$\mathbf{h}_t = (1 - \mathbf{z}_t) \odot \mathbf{h}_{t-1} + \mathbf{z}_t \odot \tilde{\mathbf{h}}_t$$
 
 GRU is computationally cheaper than LSTM with comparable performance on many tasks.
 
@@ -250,5 +254,5 @@ GRU is computationally cheaper than LSTM with comparable performance on many tas
 
 ---
 
-**← Previous:** [Chapter 10: CNNs](chapter-10-cnn.qmd)  
+**← Previous:** [Chapter 10: CNNs](chapter-10-cnn.qmd)
 **→ Next:** [Chapter 12: K-Means Clustering](chapter-12-kmeans.qmd)
